@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}รีโมตเครื่องสาขา{% endblock %}
+{% block head %}
+<style>
+  .remote-wrap { display:flex; gap:16px; height:calc(100vh - 120px); }
+  .remote-side { width:290px; flex:none; display:flex; flex-direction:column;
+                 background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
+  .remote-side header { padding:12px 14px; border-bottom:1px solid #f3f4f6; }
+  .remote-list { overflow-y:auto; flex:1; }
+  .remote-item { display:block; width:100%; text-align:left; padding:10px 14px; background:none;
+                 border:none; border-bottom:1px solid #f9fafb; cursor:pointer; font-size:13px; }
+  .remote-item:hover:not(:disabled) { background:#f9fafb; }
+  .remote-item:disabled { color:#9ca3af; cursor:not-allowed; }
+  .remote-item.active { background:#eff6ff; box-shadow:inset 3px 0 0 #2563eb; }
+  .remote-item .code { color:#6b7280; font-size:11px; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:6px; }
+  .dot.on { background:#10b981; } .dot.off { background:#d1d5db; } .dot.live { background:#dc2626; }
+  .remote-main { flex:1; display:flex; flex-direction:column;
+                 background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
+  .remote-bar { display:flex; align-items:center; gap:10px; padding:8px 12px;
+                border-bottom:1px solid #f3f4f6; flex-wrap:wrap; }
+  .remote-bar .sep { flex:1; }
+  .chip { font-size:12px; padding:3px 9px; border-radius:999px; background:#f3f4f6; color:#374151; }
+  #remote-frame { flex:1; width:100%; border:0; background:#fff; }
+  .empty { flex:1; display:flex; align-items:center; justify-content:center; color:#9ca3af; font-size:14px; }
+  .empty[hidden] { display:none; }
+  .remote-main:fullscreen { border-radius:0; }
+  .remote-main:fullscreen #remote-frame { height:100%; }
+  /* เต็มจอ = อยากเห็นหน้าเครื่องสาขาเต็ม ๆ แถบเครื่องมือเลยหลบขึ้นไปก่อน
+     แล้วค่อยเลื่อนลงมาเมื่อเอาเมาส์ไปบริเวณขอบบน */
+  .remote-main:fullscreen .remote-bar {
+    position:absolute; top:0; left:0; right:0; z-index:5;
+    background:rgba(255,255,255,.96); box-shadow:0 2px 8px rgba(0,0,0,.15);
+    transform:translateY(-100%); transition:transform .18s ease;
+  }
+  .remote-main:fullscreen .remote-bar:hover,
+  .remote-main:fullscreen .remote-bar:focus-within,
+  .remote-main.bar-peek:fullscreen .remote-bar { transform:translateY(0); }
+  .remote-main:fullscreen .bar-hotzone { display:block; }
+  .bar-hotzone { display:none; position:absolute; top:0; left:0; right:0; height:14px; z-index:6; }
+</style>
+{% endblock %}
+{% block content %}
+<div style="padding:4px 0 10px;">
+  <h1 style="font-size:20px; font-weight:600;">รีโมตเครื่องสาขา</h1>
+  <p style="color:#6b7280; font-size:13px;">เปิดหน้าเว็บของเครื่องสาขาผ่านแอดมิน เครื่องสาขาจะขึ้นแจ้งเตือนว่ากำลังถูกรีโมต</p>
+</div>
+
+<div class="remote-wrap">
+  <aside class="remote-side">
+    <header>
+      <strong style="font-size:13px;">สาขา</strong>
+      <span id="online-count" style="color:#6b7280; font-size:12px;"></span>
+      <label style="display:block; margin-top:6px; font-size:12px; color:#6b7280;">
+        <input type="checkbox" id="only-online" checked> เฉพาะที่ออนไลน์
+      </label>
+    </header>
+    <div class="remote-list" id="branch-list"></div>
+  </aside>
+
+  <section class="remote-main">
+    <div class="bar-hotzone" id="bar-hotzone"></div>
+    <div class="remote-bar">
+      <strong id="current-name" style="font-size:13px;">ยังไม่ได้เลือกสาขา</strong>
+      <span class="chip" id="current-state">—</span>
+      <span class="sep"></span>
+      <button class="btn btn-secondary" id="btn-full" style="padding:4px 10px;" hidden>เต็มจอ</button>
+      <button class="btn btn-secondary" id="btn-reload" style="padding:4px 10px;" hidden>โหลดใหม่</button>
+      <button class="btn" id="btn-close" style="padding:4px 10px; background:#dc2626; color:#fff;" hidden>ตัดการเชื่อมต่อ</button>
+    </div>
+    <div class="empty" id="empty-state">เลือกสาขาทางซ้ายเพื่อเริ่มรีโมต</div>
+    <!-- The branch UI comes from its own origin (remote_origin.py); sandbox also keeps it from
+         navigating this page. allow-same-origin means the remote origin's own cookies. -->
+    <iframe id="remote-frame" hidden
+            sandbox="allow-scripts allow-forms allow-same-origin allow-downloads allow-popups allow-modals"
+            referrerpolicy="no-referrer"></iframe>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const listEl = document.getElementById('branch-list');
+const frame = document.getElementById('remote-frame');
+const emptyEl = document.getElementById('empty-state');
+const nameEl = document.getElementById('current-name');
+const stateEl = document.getElementById('current-state');
+const btnReload = document.getElementById('btn-reload');
+const btnFull = document.getElementById('btn-full');
+const mainEl = document.querySelector('.remote-main');
+const btnClose = document.getElementById('btn-close');
+const onlyOnline = document.getElementById('only-online');
+
+let branches = [];
+let liveSessions = [];
+let capable = [];
+let current = null;
+let remoteBase = null;  // the branch root on the remote origin, for reloads
+let reconnecting = false;
+
+async function loadBranches() {
+  const [uRes, sRes, cRes] = await Promise.all([
+    fetch('/ai-camera/api/users'),
+    fetch('/ai-camera/api/remote/sessions'),
+    fetch('/ai-camera/api/remote/capable'),
+  ]);
+  const groups = await uRes.json();
+  liveSessions = await sRes.json();
+  capable = await cRes.json();
+  branches = [];
+  (Array.isArray(groups) ? groups : []).forEach(g => {
+    (g.users || []).forEach(u => branches.push({
+      code: u.activation_code,
+      name: u.branch_name || '(ไม่มีชื่อสาขา)',
+      group: g.group_name,
+      online: !!u.is_online,
+    }));
+  });
+  renderList();
+}
+
+function renderList() {
+  const rows = branches.filter(b => !onlyOnline.checked || b.online);
+  document.getElementById('online-count').textContent =
+    `· ออนไลน์ ${branches.filter(b => b.online).length}/${branches.length}`;
+
+  if (!rows.length) {
+    listEl.innerHTML = '<div style="padding:14px; color:#9ca3af; font-size:13px;">ไม่มีสาขาที่ออนไลน์</div>';
+    return;
+  }
+  listEl.innerHTML = rows.map(b => {
+    const live = liveSessions.includes(b.code);
+    const ready = capable.includes(b.code);
+    const dot = live ? 'live' : (b.online ? 'on' : 'off');
+    // สาขาที่ออนไลน์แต่เวอร์ชันยังไม่รองรับ ปิดปุ่มพร้อมบอกเหตุผล
+    // ดีกว่าปล่อยให้กดแล้วรอ 8 วินาทีจนหมดเวลา
+    const usable = b.online && ready;
+    const note = b.online && !ready ? ' · เวอร์ชันยังไม่รองรับ' : '';
+    return `<button class="remote-item ${current === b.code ? 'active' : ''}"
+              data-code="${b.code}" ${usable ? '' : 'disabled'}
+              title="${b.online && !ready ? 'ต้องอัปเดตสาขานี้ก่อนถึงจะรีโมตได้' : ''}">
+              <span class="dot ${dot}"></span>${b.name}${live ? ' · กำลังรีโมต' : ''}${note}
+              <div class="code">${b.code} · ${b.group}</div>
+            </button>`;
+  }).join('');
+
+  listEl.querySelectorAll('.remote-item').forEach(btn => {
+    btn.addEventListener('click', () => openRemote(btn.dataset.code));
+  });
+}
+
+async function openRemote(code) {
+  const branch = branches.find(b => b.code === code);
+  current = code;
+  nameEl.textContent = branch ? branch.name : code;
+  stateEl.textContent = 'กำลังเชื่อมต่อ...';
+  renderList();
+
+  try {
+    const res = await fetch(`/ai-camera/api/remote/${code}/open`, { method: 'POST' });
+    const data = await res.json();
+    if (!data.status) {
+      stateEl.textContent = data.message || 'เชื่อมต่อไม่สำเร็จ';
+      return;
+    }
+    // data.url is a one-use enter link; reloads go to the branch's root on that origin.
+    const u = new URL(data.url);
+    remoteBase = u.origin + u.pathname.replace(/__enter$/, '');
+    frame.src = data.url;
+    frame.hidden = false;
+    emptyEl.hidden = true;
+    btnReload.hidden = false;
+    btnFull.hidden = false;
+    btnClose.hidden = false;
+    refreshState();
+  } catch (err) {
+    stateEl.textContent = 'เชื่อมต่อไม่สำเร็จ: ' + err;
+  }
+}
+
+async function refreshState() {
+  if (!current) return;
+  try {
+    const s = await (await fetch(`/ai-camera/api/remote/${current}/status`)).json();
+    stateEl.textContent = s.active
+      ? `เชื่อมต่ออยู่ · สตรีม ${s.streams} · เหลือ ${Math.floor(s.expires_in / 60)} นาที`
+      : 'หลุดการเชื่อมต่อ · กำลังลองต่อใหม่...';
+    stateEl.style.color = s.active ? '#059669' : '#dc2626';
+
+    // เครื่องสาขารีสตาร์ตตัวเอง (เช่นกดเปลี่ยนพอร์ต) ท่อจะหลุดแล้วกลับมา
+    // ต่อกลับให้เองจะได้ไม่ต้องเลือกสาขาใหม่ทุกครั้ง
+    if (!s.active && !reconnecting) {
+      reconnecting = true;
+      try { await openRemote(current); } finally { reconnecting = false; }
+    }
+  } catch (e) { /* เดี๋ยวรอบหน้าค่อยว่ากัน */ }
+}
+
+// แถบบนโผล่เมื่อเมาส์เข้าใกล้ขอบบนตอนเต็มจอ
+const hotzone = document.getElementById('bar-hotzone');
+hotzone.addEventListener('mouseenter', () => mainEl.classList.add('bar-peek'));
+mainEl.addEventListener('mouseleave', () => mainEl.classList.remove('bar-peek'));
+document.querySelector('.remote-bar').addEventListener('mouseleave', () => {
+  mainEl.classList.remove('bar-peek');
+});
+
+btnFull.addEventListener('click', () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else mainEl.requestFullscreen();
+});
+document.addEventListener('fullscreenchange', () => {
+  btnFull.textContent = document.fullscreenElement ? 'ออกจากเต็มจอ' : 'เต็มจอ';
+});
+
+btnReload.addEventListener('click', () => {
+  if (!current) return;
+  // The iframe is another origin now, so this page cannot reload it in place:
+  // it goes back to the branch's root page (the viewer cookie is still set).
+  if (remoteBase) frame.src = remoteBase;
+});
+
+btnClose.addEventListener('click', async () => {
+  if (!current) return;
+  if (document.fullscreenElement) await document.exitFullscreen();
+  await fetch(`/ai-camera/api/remote/${current}/close`, { method: 'POST' });
+  frame.src = 'about:blank';
+  frame.hidden = true;
+  emptyEl.hidden = false;
+  btnReload.hidden = true;
+  btnFull.hidden = true;
+  btnClose.hidden = true;
+  nameEl.textContent = 'ยังไม่ได้เลือกสาขา';
+  stateEl.textContent = '—';
+  current = null;
+  loadBranches();
+});
+
+onlyOnline.addEventListener('change', renderList);
+
+loadBranches().then(() => {
+  // เปิดจากเมนูสามจุดในหน้ารายชื่อผู้ใช้ — เลือกสาขานั้นให้เลย
+  const wanted = new URLSearchParams(location.search).get('client');
+  if (wanted) openRemote(wanted);
+});
+setInterval(() => { refreshState(); loadBranches(); }, 5000);
+
+// ปิดแท็บ = ตัดสาย ไม่ปล่อยให้ท่อค้างเปิดที่เครื่องลูกค้า
+window.addEventListener('pagehide', () => {
+  if (current) navigator.sendBeacon(`/ai-camera/api/remote/${current}/close`);
+});
+</script>
+{% endblock %}

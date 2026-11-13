@@ -114,3 +114,13 @@ class Config:
 
     # Frontend base URL used for build-farm uploads / force-update callbacks
     FRONTEND_BASE_URL = os.getenv("AI_CAMERA_ADMIN_FRONTEND_URL", "http://localhost:8002")
+    FRONTEND_PORT = int(os.getenv("AI_CAMERA_ADMIN_FRONTEND_PORT", "8002"))
+
+    # A branch's pages are served from their own origin (remote_origin.py) so their
+    # scripts can never act as the admin page. Locally that is another port of this
+    # host; in production give it a host of its own and set the URL it is reached at.
+    REMOTE_ORIGIN_PORT = int(os.getenv("AI_CAMERA_ADMIN_REMOTE_ORIGIN_PORT", "8022"))
+    REMOTE_ORIGIN_URL = _env("AI_CAMERA_ADMIN_REMOTE_ORIGIN").strip().rstrip("/")
+    # The admin page's own origin as browsers see it (scheme://host[:port]): the only
+    # page the remote origin lets frame it, and the only Origin that may change data.
+    ADMIN_PUBLIC_ORIGIN = _env("AI_CAMERA_ADMIN_PUBLIC_ORIGIN").strip().rstrip("/")

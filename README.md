@@ -6,7 +6,7 @@
 |---|---|---|---|---|
 | 1 | ฐาน: mock admin + client | `client/` | `admin/` | ✅ |
 | 2 | log เข้ารหัส → ดึงมาที่แอดมิน → ถอดบนเซิร์ฟเวอร์ → แสดงให้ผู้ขอดู | `log_seal.py` (เปิด) + `log_agent.py` | `log_pull_service` + `log_unseal` + `audit_log`, หน้า Log Dashboard | ✅ ทดสอบในเครื่อง |
-| 3 | รีโมตเข้าเว็บของสาขา (ท่อ TLS) | `remote_agent.py` | `remote_proxy` / `remote_api` | ⏳ |
+| 3 | รีโมตเข้าเว็บของสาขา (ผ่าน Socket.IO เส้นเดิม = TLS, หน้าสาขาอยู่ origin แยก) | `remote_agent.py` | `remote_tunnel` + `blueprints/remote` + `remote_origin` | ✅ ทดสอบในโปรเซส |
 | 4 | ดูกล้องสด (Live Display ผ่านท่อรีโมต, MJPEG) | หน้า Live Display | หน้า live | ⏳ |
 | 5 | สั่งอัปเดต client ผ่านแอดมิน + service เข้ารหัส (DLC) | มีแล้ว | มีแล้ว (mock admin) | ทดสอบร่วม |
 
@@ -28,8 +28,18 @@
 - **log**: client มีแค่ public key (เข้ารหัสได้ ถอดไม่ได้). private key อยู่บนเซิร์ฟเวอร์แอดมินเท่านั้น
   นอก repo, สิทธิ์ไฟล์ 600, ชี้ด้วย env `AICAM_LOG_SEAL_KEY`. ถอดแล้วส่งให้ผู้ขอดูอย่างเดียว ไม่เขียน plaintext ลงดิสก์.
   ทุกครั้งที่ดู → audit log (ใคร / สาขา / ไฟล์ / เวลา)
-- **ท่อรีโมต (65434)**: ต้นแบบเดิมเป็น TCP เปล่า — ใน lab ต้องห่อ TLS ก่อนส่งภาพหรือ log ผ่านมัน.
-  token ใช้ครั้งเดียว 60 วิ, เซสชัน 30 นาที, client ยิงได้แค่ loopback + พอร์ตของแอป
+- **รีโมต**: วิ่งบน Socket.IO เส้นที่สาขาต่อค้างไว้ (https) เท่านั้น — client **ปฏิเสธ** โหมดท่อ TCP 65434
+  (ไม่เข้ารหัส) และแอดมินใน lab ไม่มีพอร์ตนั้นเลย. token ใช้ครั้งเดียว 60 วิ, เซสชัน 30 นาที,
+  client ยิงได้แค่ loopback + พอร์ตของแอป, พนักงานที่ร้านเห็นแถบ "กำลังถูกรีโมต" + แจ้งเตือนบนเครื่อง
+- **หน้าเว็บสาขาอยู่ origin แยก** (`remote_origin.py`, พอร์ต 8022 / host แยกใน production):
+  ต้นแบบเดิมเสิร์ฟหน้าสาขาใน origin เดียวกับแอดมินแบบไม่มี sandbox — สาขาที่ถูกเจาะจะรัน JS ในฐานะแอดมิน
+  แล้วสั่งอัปเดตทุกสาขาได้. ตอนนี้: เข้าได้เฉพาะ IP ออฟฟิศ + cookie ผู้ชม (HttpOnly, SameSite=Strict,
+  path ของสาขานั้น) ที่ได้จากตั๋วใช้ครั้งเดียว 60 วิ, ฝังได้เฉพาะในหน้าแอดมิน (`frame-ancestors`), iframe มี `sandbox`
+- **CSRF**: คำขอ POST/PUT/DELETE ของแอดมินที่เบราว์เซอร์บอกว่ามาจาก origin อื่น (Origin/Referer) ถูกปฏิเสธ —
+  ใช้ IP เป็นตัวยืนยันตัวตนอย่างเดียว เว็บอื่นที่เปิดในเบราว์เซอร์ออฟฟิศจึงยิงคำสั่งมาไม่ได้
+- **อ่านไฟล์เครื่องสาขาผ่านรีโมต (`/__fs/`)**: ต้นแบบอ่านได้ทั้งโฟลเดอร์แอป (มี `_secrets.py`, `.env`) +
+  Desktop/Downloads ทุกไฟล์. ตอนนี้: ไม่รวมโฟลเดอร์แอป, ไม่เห็นไฟล์/โฟลเดอร์ซ่อน, เห็นและอ่านได้เฉพาะไฟล์รูป,
+  ทุกครั้งลง audit log
 - **กล้องสด = ข้อมูลส่วนบุคคล (ภาพลูกค้า)**: ดูได้เฉพาะบัญชีที่มีสิทธิ์, แอดมินไม่บันทึกภาพ, ตัดอัตโนมัติเมื่อหมดเวลา,
   audit log ใคร/กล้องไหน/เริ่ม–จบ
 - **เรื่องที่รู้แล้วในโค้ด client ที่ยังไม่แก้ (รีโปบริษัท)**: รหัส DB เดียวกันทุกสาขา (คอมเมนต์ใน `upgrade_branch.py`);
@@ -46,6 +56,16 @@ export AI_CAMERA_ADMIN_AUDIT_LOG=/var/log/ai-camera/audit.jsonl     # ไม่�
 - ทุกการ list / pull / ดู / ดาวน์โหลด ลง audit log (ผู้ดู = IP จนกว่าจะมี login รายคน — แก้ที่ `services/audit_log.actor()` ที่เดียว);
   เขียน audit ไม่ได้ = ไม่ให้ดู
 - ข้อจำกัด: client ส่งเฉพาะ `log/`, `logs/` ใต้ `~/Library/Application Support/AICamera` — สาขาแบบ git clone ที่ service เขียน log ไว้ในโฟลเดอร์รีโป ยังดึงไม่ได้
+
+## ตั้งค่า production สำหรับเฟส 3
+
+```bash
+AI_CAMERA_ADMIN_PUBLIC_ORIGIN=https://admin.example        # origin ที่เบราว์เซอร์เห็นหน้าแอดมิน (CSRF + frame-ancestors)
+AI_CAMERA_ADMIN_REMOTE_ORIGIN=https://remote.admin.example # host แยกของหน้าสาขา — ห้ามเป็น host เดียวกับแอดมิน
+AI_CAMERA_ADMIN_REMOTE_ORIGIN_PORT=8022                    # พอร์ตที่ nginx ส่งต่อให้ remote origin
+```
+หลัง nginx ถ้าไม่ตั้ง `AI_CAMERA_ADMIN_PUBLIC_ORIGIN` คำขอ POST จากหน้าแอดมินจริงจะโดนตัวกัน CSRF ปฏิเสธ
+(เทียบกับ `request.host_url` ซึ่งเป็นที่อยู่ภายใน)
 
 ## เตรียมรันในเครื่อง
 

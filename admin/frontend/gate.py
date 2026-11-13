@@ -169,6 +169,26 @@ def record_activation_result(response):
     return response
 
 
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+def _same_origin_or_none() -> bool:
+    """False when a browser says a request that changes data came from another
+    origin. Browsers send Origin on every cross-origin POST/PUT/DELETE (and on
+    sendBeacon); Referer is the fallback. A request with neither is not from a
+    browser page (curl, a script on this host) and is judged by IP alone."""
+    if request.method in _SAFE_METHODS:
+        return True
+    own = Config.ADMIN_PUBLIC_ORIGIN or request.host_url.rstrip("/")
+    origin = request.headers.get("Origin", "").strip()
+    if origin:
+        return origin == own
+    referer = request.headers.get("Referer", "").strip()
+    if referer:
+        return referer == own or referer.startswith(own + "/")
+    return True
+
+
 def check_request():
     """before_request hook: None lets the request through, else the refusal.
 
@@ -191,6 +211,12 @@ def check_request():
     ip = client_ip()
     if ip not in allowed:
         current_app.logger.info(f"Blocked unauthorized {kind} request from IP: {ip}")
+        abort(403)
+    if kind == "admin" and not _same_origin_or_none():
+        # A page on another origin (any site an office browser has open, or a
+        # branch's UI on the remote origin) cannot change data here: the office IP
+        # is the only credential, and that browser carries it everywhere.
+        current_app.logger.info(f"Blocked cross-origin {request.method} {request.path} from IP: {ip}")
         abort(403)
     if kind == "branch_rest":
         # Readiness signal for the switch: these are the uploads it would start refusing.

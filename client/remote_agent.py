@@ -93,9 +93,9 @@ def _allowed_roots():
                  for p in configured.split(":") if p.strip()]
         return [r for r in roots if os.path.isdir(r)]
 
-    app_dir = os.path.dirname(os.path.abspath(__file__))
+    # Not the app's own folder: on a branch installed by git clone it holds
+    # _secrets.py, .env and client_config.json. The picker is for pictures.
     candidates = [
-        os.path.realpath(app_dir),
         os.path.realpath(os.path.expanduser("~/Pictures")),
         os.path.realpath(os.path.expanduser("~/Desktop")),
         os.path.realpath(os.path.expanduser("~/Downloads")),
@@ -112,6 +112,15 @@ ALLOWED_ROOTS = _allowed_roots()
 
 # กันดูดไฟล์ใหญ่จนเน็ตร้านตัน
 MAX_FILE_BYTES = 20 * 1024 * 1024
+
+# What the picker is for: an image to upload (floor plans, camera shots). Only
+# these are listed or read; a store's other files — names included, which can
+# carry personal details — never leave the Mac through the remote.
+MEDIA_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp", ".gif"})
+
+
+def _is_media(name):
+    return os.path.splitext(name)[1].lower() in MEDIA_EXTENSIONS
 
 
 # งานไฟล์บางอย่าง (listdir/open) จะ "ค้าง" เมื่อ macOS TCC กันโฟลเดอร์ที่ต้องขอ
@@ -153,7 +162,12 @@ def _safe_path(raw):
     for root in ALLOWED_ROOTS:
         # root "/" ต้องแยกเคส ไม่งั้นเทียบ prefix เป็น "//" แล้วไม่ตรงอะไรเลย
         prefix = root if root.endswith(os.sep) else root + os.sep
-        if target == root or target.startswith(prefix):
+        if target == root:
+            return target
+        if target.startswith(prefix):
+            # Hidden files and folders (".ssh", ".env", ...) stay out at any depth.
+            if any(part.startswith(".") for part in target[len(prefix):].split(os.sep)):
+                return None
             return target
     return None
 
@@ -498,9 +512,13 @@ class RemoteAgent:
                 return
             items = []
             for name in names:
+                if name.startswith("."):
+                    continue
                 full = os.path.join(target, name)
                 try:
                     is_dir = _fs_call(lambda f=full: os.path.isdir(f))
+                    if not is_dir and not _is_media(name):
+                        continue
                     size = 0 if is_dir else _fs_call(lambda f=full: os.path.getsize(f))
                     items.append({"name": name, "path": full,
                                   "is_dir": is_dir, "size": size})
@@ -510,6 +528,9 @@ class RemoteAgent:
             return
 
         if op == "get":
+            if not _is_media(target):
+                self._send_json(req_id, {"error": "เปิดผ่านรีโมตได้เฉพาะไฟล์รูป"}, 403)
+                return
             try:
                 if not _fs_call(lambda: os.path.isfile(target)):
                     self._send_json(req_id, {"error": "ไม่พบไฟล์"}, 404)
@@ -792,8 +813,6 @@ def on_open_remote(data: Any, client_id: str = "") -> None:
     if not isinstance(data, dict):
         return
     token = data.get("token")
-    host = data.get("host")
-    port = data.get("port")
 
     # โหมดใหม่: ใช้ Socket.IO เส้นเดิมเป็นท่อ ไม่ต้องหมุน TCP ออกไปอีกเส้น
     if data.get("transport") == "socketio":
@@ -804,17 +823,10 @@ def on_open_remote(data: Any, client_id: str = "") -> None:
         start_socketio_session(emit_fn, str(token), client_id)
         return
 
-    if not token or not host or not port:
-        logger.warning("[REMOTE] open_remote ข้อมูลไม่ครบ — ข้าม")
-        return
-
-    close_remote()   # อนุญาตทีละเซสชัน เปิดใหม่ทับของเก่าเสมอ
-
-    agent = RemoteAgent(str(host), int(port), str(token), client_id)
-    with _agent_lock:
-        global _agent
-        _agent = agent
-    threading.Thread(target=agent.run, name="remote-agent", daemon=True).start()
+    # The separate TCP tunnel (port 65434) carries pages, files and camera video
+    # unencrypted. A session runs only over the Socket.IO link, which is TLS; an
+    # open_remote asking for anything else is refused, whoever sent it.
+    logger.warning("[REMOTE] open_remote refused: only the Socket.IO transport is allowed")
 
 
 def close_remote(data: Any = None) -> None:

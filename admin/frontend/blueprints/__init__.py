@@ -28,3 +28,4 @@ from blueprints import api_traffic  # noqa: F401, E402
 from blueprints import api_camera_alert  # noqa: F401, E402
 from blueprints import api_camera_placement  # noqa: F401, E402
 from blueprints import api_logs  # noqa: F401, E402
+from blueprints import remote  # noqa: F401, E402

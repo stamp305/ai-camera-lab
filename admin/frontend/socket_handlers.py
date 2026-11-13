@@ -16,6 +16,7 @@ from flask_socketio import disconnect
 from config import Config
 from extensions import socketio
 from gate import check_socket_connect, socket_identify_refusal
+from services import audit_log, remote_tunnel
 from services.dlc_transfer import models_missing, needs_parts, send_dlc_file, takes_parts
 from services.dlc_service import (
     build_master_manifest,
@@ -130,6 +131,8 @@ def sio_identify(data: Any):
             "sid": request.sid,
             "info": info,
             "connected_at": time.time(),
+            # A branch that can carry the remote tunnel on this link says so at identify.
+            "remote_capable": bool(info.get("remote")),
         }
     _report_identify(client_id, info)
     assigned_version = _fetch_assigned_version(client_id)
@@ -333,9 +336,41 @@ def sio_disconnect():
                     removed_id = cid
                     del update_clients[cid]
                 break
+    # A remote session runs on one connection; when that one goes, so does the
+    # session, or its requests would wait out their timeouts instead of failing.
+    for cid in remote_tunnel.active_sessions():
+        if remote_tunnel.session_sid(cid) == request.sid and remote_tunnel.close_session(cid):
+            audit_log.record("remote_dropped", cid, result="socketio_disconnect")
     if removed_id:
         _webhook_notify("client_disconnected", removed_id, {})
         current_app.logger.info(f"[SOCKET] Client disconnected client_id={removed_id}")
+
+
+def _sid_to_client(sid: str) -> Optional[str]:
+    with update_clients_lock:
+        for cid, meta in update_clients.items():
+            if meta.get("sid") == sid:
+                return cid
+    return None
+
+
+@socketio.on("remote_frame")
+def sio_remote_frame(data: Any):
+    """A frame of the remote tunnel, on the same link (and TLS) as updates.
+
+    The branch is whoever this connection identified as, never what the frame
+    says, so one branch cannot answer for another.
+    """
+    if not isinstance(data, dict):
+        return
+    client_id = _sid_to_client(request.sid)
+    if not client_id:
+        return
+    if data.get("t") == "hello":
+        ok = remote_tunnel.register_session(client_id, request.sid, data.get("token") or "", socketio.emit)
+        audit_log.record("remote_tunnel", client_id, result="ok" if ok else "bad_token")
+        return
+    remote_tunnel.on_frame(client_id, data)
 
 import os
 from blueprints.api_system import CLIENT_UPDATE_DIR

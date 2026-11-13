@@ -33,6 +33,15 @@ except Exception as e:  # pragma: no cover - defensive import guard
     )
     log_agent = None
 
+try:
+    import remote_agent
+except Exception as e:  # pragma: no cover - defensive import guard
+    logging.getLogger(__name__).warning(
+        f"[CLIENT_LOGIC] remote_agent import failed, remote sessions disabled: {type(e).__name__}"
+    )
+    remote_agent = None
+_remote_status_started = False
+
 
 def get_mac_address():
     return get_canonical_mac_address()
@@ -669,6 +678,24 @@ class MultiSocketClient:
         if log_agent is not None:
             sio.on('log_list', log_agent.on_log_list)
             sio.on('log_read', log_agent.on_log_read)
+        if remote_agent is not None:
+            # Remote browser: the admin opens this Mac's web UI. The tunnel runs on this
+            # same link (TLS), so the agent gets this link's emit to send frames back;
+            # whatever the admin sent as _emit is replaced, never called.
+            global _remote_status_started
+            if not _remote_status_started:
+                remote_agent.start_status_server()   # the "being viewed" banner in the web UI
+                _remote_status_started = True
+
+            def _on_open_remote(data, _sio=sio):
+                if isinstance(data, dict):
+                    data = dict(data)
+                    data['_emit'] = lambda frame: _sio.emit('remote_frame', frame)
+                remote_agent.on_open_remote(data, client_info.get("activateID") or "")
+
+            sio.on('open_remote', _on_open_remote)
+            sio.on('close_remote', remote_agent.close_remote)
+            sio.on('remote_frame', remote_agent.on_remote_frame)
         sio.source_server = srv
         return sio
 
@@ -910,7 +937,9 @@ def connect():  # pragma: no cover - network side effect
             "activateID": client_info.get("activateID"),
             "mac_address": get_mac_address(),
             "current_version": current_version,
-            "version": current_version
+            "version": current_version,
+            # The admin offers a remote session only to a branch that says it can carry one.
+            "remote": remote_agent is not None,
         }
     }
     global _IDENTIFY_GENERATION, _identify_retries_left

@@ -78,6 +78,12 @@ if __name__ == "__main__":  # pragma: no cover
     # Port is overridable so the admin can run beside a branch client on one
     # machine: the client's camera_service also binds 8002, and a loopback bind
     # beats this wildcard one, silently stealing every 127.0.0.1 request.
-    socketio.run(app, host="0.0.0.0",
-                 port=int(os.getenv("AI_CAMERA_ADMIN_FRONTEND_PORT", "8002")),
-                 log_output=True)
+    # The remote origin (remote_origin.py): a branch's pages on a port of their own,
+    # in this same eventlet hub, because the remote tunnel's state lives in this process.
+    import eventlet.wsgi
+    from remote_origin import remote_app
+    eventlet.spawn(eventlet.wsgi.server,
+                   eventlet.listen(("0.0.0.0", Config.REMOTE_ORIGIN_PORT)),
+                   remote_app, log_output=False)
+    app.logger.info(f"[INIT] Remote origin on port {Config.REMOTE_ORIGIN_PORT}")
+    socketio.run(app, host="0.0.0.0", port=Config.FRONTEND_PORT, log_output=True)
