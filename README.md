@@ -5,7 +5,7 @@
 | เฟส | เรื่อง | ฝั่ง client | ฝั่งแอดมิน | สถานะ |
 |---|---|---|---|---|
 | 1 | ฐาน: mock admin + client | `client/` | `admin/` | ✅ |
-| 2 | log เข้ารหัส → ดึงมาที่แอดมิน → ถอดบนเซิร์ฟเวอร์ → แสดงให้ผู้ขอดู | `log_seal.py` (เปิด) + `log_agent.py` | log pull + ถอดรหัส | ⏳ |
+| 2 | log เข้ารหัส → ดึงมาที่แอดมิน → ถอดบนเซิร์ฟเวอร์ → แสดงให้ผู้ขอดู | `log_seal.py` (เปิด) + `log_agent.py` | `log_pull_service` + `log_unseal` + `audit_log`, หน้า Log Dashboard | ✅ ทดสอบในเครื่อง |
 | 3 | รีโมตเข้าเว็บของสาขา (ท่อ TLS) | `remote_agent.py` | `remote_proxy` / `remote_api` | ⏳ |
 | 4 | ดูกล้องสด (Live Display ผ่านท่อรีโมต, MJPEG) | หน้า Live Display | หน้า live | ⏳ |
 | 5 | สั่งอัปเดต client ผ่านแอดมิน + service เข้ารหัส (DLC) | มีแล้ว | มีแล้ว (mock admin) | ทดสอบร่วม |
@@ -34,6 +34,18 @@
   audit log ใคร/กล้องไหน/เริ่ม–จบ
 - **เรื่องที่รู้แล้วในโค้ด client ที่ยังไม่แก้ (รีโปบริษัท)**: รหัส DB เดียวกันทุกสาขา (คอมเมนต์ใน `upgrade_branch.py`);
   บัญชี UI เริ่มต้น `admin`/`admin` (`data_service/utils/init_account_config.py`)
+
+## ตั้งค่าเซิร์ฟเวอร์แอดมินสำหรับเฟส 2
+
+```bash
+export AICAM_LOG_SEAL_KEY=/path/outside/repo/log_seal_private.pem   # chmod 600 ไม่งั้นไม่โหลด
+export AI_CAMERA_ADMIN_AUDIT_LOG=/var/log/ai-camera/audit.jsonl     # ไม่ตั้ง = admin/backend/log/audit.jsonl
+```
+
+- ไฟล์ที่ดึงมาอยู่ใต้ `admin/backend/client_logs/<session>/...` **ยังเข้ารหัสอยู่เสมอ** — ถอดในหน่วยความจำตอนกดดู/ดาวน์โหลดเท่านั้น
+- ทุกการ list / pull / ดู / ดาวน์โหลด ลง audit log (ผู้ดู = IP จนกว่าจะมี login รายคน — แก้ที่ `services/audit_log.actor()` ที่เดียว);
+  เขียน audit ไม่ได้ = ไม่ให้ดู
+- ข้อจำกัด: client ส่งเฉพาะ `log/`, `logs/` ใต้ `~/Library/Application Support/AICamera` — สาขาแบบ git clone ที่ service เขียน log ไว้ในโฟลเดอร์รีโป ยังดึงไม่ได้
 
 ## เตรียมรันในเครื่อง
 

@@ -1,0 +1,377 @@
+<!-- templates/log_dashboard.html -->
+
+{% extends "base.html" %}
+
+{% block title %}Log Dashboard - AI Camera{% endblock %}
+
+{% block content %}
+<header class="main-header">
+    <div>
+        <h1>แดชบอร์ด Log</h1>
+        <p>เลือกสาขาที่ออนไลน์ ระบบจะดึง log ทั้งหมดมาไว้ชั่วคราวให้เลือกดูได้ทันที</p>
+    </div>
+</header>
+
+<div class="log-dashboard-grid">
+    <!-- Sidebar - Branch picker + log file tree -->
+    <div class="card">
+        <div class="card-header"
+            style="padding: 16px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div class="card-header-title" style="margin: 0;">สาขา</div>
+            <button type="button" id="refreshBranchesBtn" class="btn btn-secondary btn-sm">รีเฟรช</button>
+        </div>
+        <div class="card-content log-sidebar-content" style="padding: 16px;">
+            <div class="form-group" style="margin-bottom: 8px;">
+                <label for="branchSelect">เลือกสาขา (ออนไลน์)</label>
+                <select id="branchSelect">
+                    <option value="">-- เลือกสาขา --</option>
+                </select>
+                <p id="branchMeta" class="log-meta-text hidden"></p>
+            </div>
+            <p id="branchError" class="error-state hidden"></p>
+
+            <!-- Acts on the session for the branch picked above: "ดึงใหม่" starts a
+                 NEW session (deleting the old one first), "เลิกดู / ลบ" deletes the
+                 session (also cancelling it if still running) and resets everything
+                 below back to empty. Both stay usable while a pull-all job is
+                 running - "เลิกดู / ลบ" doubles as cancel then. -->
+            <div class="log-session-actions">
+                <button type="button" id="pullAllBtn" class="btn btn-secondary btn-sm" disabled>ดึงใหม่</button>
+                <button type="button" id="deleteSessionBtn" class="btn btn-secondary btn-sm" disabled>เลิกดู / ลบ</button>
+            </div>
+
+            <!-- Shown while a pull-all job is "running"; JS polls GET /sessions/<id>
+                 every second and fills in live done/total-file and byte progress
+                 here (see updatePullAllProgressText in log_dashboard.js). -->
+            <div id="pullAllStatus" class="log-pullall-status hidden">
+                <div class="spinner"></div>
+                <span id="pullAllStatusText"></span>
+            </div>
+
+            <div class="form-group" style="margin: 12px 0;">
+                <input type="text" id="searchLogs" placeholder="ค้นหาไฟล์ log...">
+            </div>
+
+            <div class="log-file-group">
+                <div class="log-file-group-title">ไฟล์ log บนสาขา</div>
+                <p id="treeError" class="error-state hidden"></p>
+                <p id="treeIncompleteNotice" class="log-truncated-notice hidden">ดึงไม่ครบ สาขาหลุดหรือไม่ตอบระหว่างดึง</p>
+                <p id="treeTruncatedNotice" class="log-truncated-notice hidden">สาขามีไฟล์มากเกินไป แสดงไม่ครบ</p>
+                <div id="logTree">
+                    <p class="loading-state">เลือกสาขาก่อนเพื่อดูไฟล์บนสาขา</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content - Log Viewer -->
+    <div class="card">
+        <div class="card-content" style="padding: 24px; gap: 16px;">
+            <!-- Log Header -->
+            <div class="log-viewer-header">
+                <div>
+                    <h3 id="currentLogTitle">ยังไม่ได้เลือกไฟล์</h3>
+                    <p id="currentLogPath">เลือกไฟล์จากแผงด้านซ้ายเพื่อเริ่มดู</p>
+                    <p id="currentLogMeta" class="log-meta-text hidden"></p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button id="refreshBtn" class="btn btn-secondary" disabled>รีเฟรช</button>
+                    <button id="downloadBtn" class="btn btn-primary" disabled>ดาวน์โหลด</button>
+                </div>
+            </div>
+
+            <!-- Log Content & Controls -->
+            <div style="display: flex; flex-direction: column; flex-grow: 1; overflow: hidden;">
+                <div class="log-viewer-controls">
+                    <input type="text" id="logSearch" placeholder="ค้นหาข้อความในไฟล์...">
+                    <select id="logLevel">
+                        <option value="">ทุกระดับ</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="WARN">WARN</option>
+                        <option value="INFO">INFO</option>
+                        <option value="DEBUG">DEBUG</option>
+                    </select>
+                </div>
+
+                <!-- Shown above the content when the server truncated the
+                     response (file bigger than the 2MB we request); JS fills
+                     in the text and toggles "hidden" via X-Log-Truncated. -->
+                <p id="logTruncatedNotice" class="log-truncated-notice hidden"></p>
+
+                <!-- "Load previous" for batched, newest-first rendering: the
+                     initial render (and every filter/search re-render) shows
+                     only the LAST batch of lines, scrolled to the bottom, since
+                     admins care about the end of a log. This button —  above
+                     the content, like a chat app's "load earlier" — prepends
+                     the previous batch on click. JS shows/hides it and keeps
+                     the viewport stable across the insert. -->
+                <button type="button" id="loadPreviousLogBtn" class="btn btn-secondary log-load-previous-btn hidden">แสดงบรรทัดก่อนหน้า</button>
+
+                <!-- Wrapper for Log Content and Overlays -->
+                <div class="log-content-wrapper">
+                    <pre id="logContent"></pre>
+
+                    <!-- Initial Empty State Overlay -->
+                    <div id="emptyOverlay" class="log-state-overlay">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                            stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round"
+                                d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                        <h3>ยังไม่ได้เลือกไฟล์</h3>
+                        <p>เลือกไฟล์ log จากแผงด้านซ้ายเพื่อเริ่มดู</p>
+                    </div>
+
+                    <!-- Loading State Overlay -->
+                    <div id="loadingOverlay" class="log-state-overlay hidden">
+                        <div class="spinner"></div>
+                        <h3>กำลังโหลดไฟล์ log</h3>
+                        <p>กรุณารอสักครู่...</p>
+                    </div>
+                </div>
+
+                <!-- Log Stats (clickable to filter by level). Labels get a
+                     "(ส่วนที่แสดง)" suffix from JS when the viewer only holds a
+                     truncated (last-2MB) slice of the file, since the counts
+                     below only cover what's shown, not the whole file. -->
+                <div id="logStats" style="visibility: hidden;">
+                    <button class="stat-card error" data-level="ERROR">
+                        <div class="label" id="errorLabel">ข้อผิดพลาด</div>
+                        <div class="value" id="errorCount">0</div>
+                    </button>
+                    <button class="stat-card warn" data-level="WARN">
+                        <div class="label" id="warnLabel">คำเตือน</div>
+                        <div class="value" id="warnCount">0</div>
+                    </button>
+                    <button class="stat-card info" data-level="INFO">
+                        <div class="label" id="infoLabel">ข้อมูล</div>
+                        <div class="value" id="infoCount">0</div>
+                    </button>
+                    <div class="stat-card total">
+                        <div class="label" id="totalLabel">รวมทั้งหมด</div>
+                        <div class="value" id="totalLines">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Log dashboard — page-scoped styles only. layout.css (shared) is not touched;
+       anything new needed for this rework lives here instead. */
+
+    .log-sidebar-content {
+        overflow-y: auto;
+    }
+
+    .log-meta-text {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        margin: 6px 0 0;
+    }
+
+    .log-session-actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
+    .log-pullall-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-bottom: 12px;
+    }
+
+    /* ต้องชนะ display:flex ด้านบน ไม่งั้น .hidden จาก layout.css ไม่มีผล */
+    .log-pullall-status.hidden { display: none; }
+
+    /* layout.css ตั้ง scroll-behavior: smooth ไว้ — กับ log ยาวหลายหมื่นพิกเซล animation โดนตัดกลางทางตอน re-render เลยไม่ถึงล่างสุด */
+    #logContent { scroll-behavior: auto; }
+
+    .log-file-group {
+        margin-top: 20px;
+    }
+
+    .log-file-group-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-secondary);
+        margin-bottom: 8px;
+    }
+
+    .log-remote-group + .log-remote-group {
+        margin-top: 12px;
+    }
+
+    .log-remote-group-title {
+        font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+        font-size: 0.75rem;
+        color: var(--text-light);
+        margin-bottom: 4px;
+    }
+
+    /* Folders (one per LogGrouping.groupKeyFor group) reuse the shared
+       .accordion-item/.accordion-header idiom (see users.html) for free
+       keyboard-accessible collapse/expand via <details>/<summary>. */
+    .log-folder {
+        margin-bottom: 4px;
+    }
+
+    .log-folder-files {
+        padding-left: 8px;
+    }
+
+    /* .log-tree-file is a <button> so it's keyboard-accessible for free;
+       strip the default button chrome so it still looks like a plain row. */
+    .log-tree-file {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+        width: 100%;
+        padding: 8px;
+        border-radius: 6px;
+        border-bottom: 1px solid var(--border-color);
+        background: none;
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        font: inherit;
+        color: inherit;
+        text-align: left;
+        cursor: pointer;
+    }
+
+    .log-tree-file:last-child {
+        border-bottom: none;
+    }
+
+    .log-tree-file:hover {
+        background-color: var(--bg-main);
+    }
+
+    .log-tree-file.active {
+        background-color: #E0EFFF;
+    }
+
+    .log-tree-file-disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+    }
+
+    .log-tree-file-disabled:hover {
+        background-color: transparent;
+    }
+
+    .log-item-main {
+        min-width: 0;
+        flex: 1 1 160px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .log-item-path {
+        font-size: 0.85rem;
+        font-weight: 500;
+        overflow-wrap: anywhere;
+    }
+
+    .log-item-meta {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        margin-top: 2px;
+    }
+
+    .log-truncated-notice {
+        background-color: #FEF3C7;
+        color: #92400E;
+        border: 1px solid #FDE68A;
+        border-radius: 6px;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+        margin-bottom: 12px;
+    }
+
+    .log-load-previous-btn {
+        align-self: center;
+        margin-bottom: 12px;
+    }
+
+    /* The markup uses .log-state-overlay to sit on top of #logContent (which is
+       absolutely positioned and opaque). That class isn't defined in the shared
+       stylesheet — only the near-identical .content-overlay is — so without this
+       rule the empty/loading state is invisible behind #logContent. Scoped here
+       instead of editing layout.css. */
+    .log-state-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        background-color: #111827;
+        color: #9CA3AF;
+        padding: 2rem;
+        text-align: center;
+        border-radius: 8px;
+        z-index: 1;
+    }
+
+    .log-state-overlay.hidden {
+        display: none;
+    }
+
+    .log-state-overlay svg {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 1rem;
+    }
+
+    .log-state-overlay h3 {
+        font-size: 1.25rem;
+        font-weight: 500;
+        color: #E5E7EB;
+        margin: 0 0 0.5rem;
+    }
+
+    .log-state-overlay p {
+        margin: 0;
+        font-size: 0.9rem;
+    }
+
+    #currentLogTitle {
+        font-size: 1.25rem;
+        font-weight: 600;
+    }
+
+    #currentLogPath {
+        font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+        word-break: break-all;
+    }
+
+    @media (max-width: 480px) {
+        .log-tree-file {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/log_grouping.js') }}"></script>
+<script src="{{ url_for('ai_camera.static', filename='js/log_dashboard.js') }}"></script>
+{% endblock %}

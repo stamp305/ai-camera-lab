@@ -23,6 +23,16 @@ from mac_utils import get_canonical_mac_address
 import device_identity
 import dlc_manifest
 
+try:
+    import log_agent
+except Exception as e:  # pragma: no cover - defensive import guard
+    # module-level `logger` (setup_logging()) ยังไม่ถูกสร้างตอนนี้ — มันมาทีหลัง
+    # ด้านล่างของไฟล์นี้อีก ใช้ logging.getLogger ตรง ๆ ไปก่อนแทน
+    logging.getLogger(__name__).warning(
+        f"[CLIENT_LOGIC] log_agent import failed, log_list/log_read handlers disabled: {type(e).__name__}"
+    )
+    log_agent = None
+
 
 def get_mac_address():
     return get_canonical_mac_address()
@@ -654,6 +664,11 @@ class MultiSocketClient:
         sio.on('dlc_update_complete', on_dlc_update_complete)
         sio.on('update_complete', on_update_complete)
         sio.on('trigger_build', on_trigger_build)
+        # Admin pulls log files over this socket (log_agent): the files go as they are
+        # on disk, sealed by log_seal, and only the admin server holds the key to open them.
+        if log_agent is not None:
+            sio.on('log_list', log_agent.on_log_list)
+            sio.on('log_read', log_agent.on_log_read)
         sio.source_server = srv
         return sio
 

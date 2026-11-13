@@ -106,6 +106,11 @@ class Config:
     MANAGED_MASTER_PATH = os.path.abspath(os.path.join(_THIS_DIR, "../backend/managed_master"))
     MANAGED_SERVICES_VERSIONS_CACHE = os.path.abspath(os.path.join(_THIS_DIR, "../backend/client_code/versions"))
     LOGS_BASE_PATH = os.path.abspath(os.path.join(_THIS_DIR, "../backend/client_logs"))
+    # Who looked at what in a branch's logs or cameras (services/audit_log.py).
+    # Outside git (admin/backend/log/); kept, never rotated away by the app.
+    AUDIT_LOG_PATH = os.path.abspath(
+        _env("AI_CAMERA_ADMIN_AUDIT_LOG") or os.path.join(_THIS_DIR, "../backend/log/audit.jsonl")
+    )
 
     # Frontend base URL used for build-farm uploads / force-update callbacks
     FRONTEND_BASE_URL = os.getenv("AI_CAMERA_ADMIN_FRONTEND_URL", "http://localhost:8002")

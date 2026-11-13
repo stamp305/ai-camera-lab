@@ -55,11 +55,11 @@ _BLOCK = 64 * 1024
 # A plain file written this recently may still be open in another program (the
 # installer's pip run appends to logs/); it is sealed on a later start instead.
 _QUIET_SECONDS = 120
-# Sealing is paused: logs are written in plain text again. Everything below is
-# kept so it can be switched back on; while off, install() only moves files a
-# sealing version left behind out of the way (to <name>.sealed), so new plain
-# lines never land in a sealed file. Those can still be read with log_open.py.
-ENABLED = False
+# On in ai-camera-lab: the admin pulls these files and opens them on its server
+# (admin/frontend/services/log_unseal.py). The company repo still has it paused.
+# Switched off, install() only moves files a sealing version left behind out of
+# the way (to <name>.sealed), so new plain lines never land in a sealed file.
+ENABLED = True
 
 _server_key = None
 

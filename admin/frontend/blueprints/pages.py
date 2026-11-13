@@ -59,3 +59,9 @@ def dashboard_page():
 def manage_dlc_page(activation_code: str):
     """Render the DLC management page for a specific activation code."""
     return render_template("manage_dlc.html", activation_code=activation_code)
+
+
+@bp.route("/log-dashboard")
+def log_dashboard_page():
+    """Render the log dashboard page."""
+    return render_template("log_dashboard.html")
