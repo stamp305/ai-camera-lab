@@ -1,0 +1,20 @@
+{% extends "layout_navbar.html" %}
+{% block title %}Staff Detection - AI Camera{% endblock %}
+{% block crumb_parent %}Detection Setup{% endblock %}
+{% block crumb_current %}Staff Detection{% endblock %}
+
+{% block content %}<div id="zone-editor"></div>{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="/static/js/shape_tools.js?v={{ range(1, 1000000) | random }}"></script>
+<script src="/static/js/zone_editor.js?v={{ range(1, 1000000) | random }}"></script>
+<script>
+ZoneEditor.mount(document.getElementById('zone-editor'), {
+    title: 'Staff Detection',
+    subtitle: 'Draw the area where staff check in',
+    svc: 'face_service',
+    serviceName: 'attendance',
+});
+</script>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Sign in - AI Camera{% endblock %}
+
+{% block body %}
+<!-- Auth Check Spinner -->
+<div id="auth-check" class="auth-shell">
+    <div class="spinner spinner-lg"></div>
+</div>
+
+<!-- Login Form -->
+<div id="login-form" class="hidden" style="display:none;">
+    <div class="auth-shell">
+        <div class="auth-card">
+            <h1 class="auth-title">Sign in</h1>
+            <form id="form-login" method="post" novalidate>
+                <div class="auth-field">
+                    <label class="auth-label" for="username">Username</label>
+                    <input class="auth-input" type="text" id="username" name="username" placeholder="Username" required minlength="4" autocomplete="username" autocapitalize="none" autocorrect="off">
+                    <p class="auth-error" id="username-error"></p>
+                </div>
+                <div class="auth-field">
+                    <label class="auth-label" for="password">Password</label>
+                    <div class="auth-input-wrap">
+                        <input class="auth-input" type="password" id="password" name="password" placeholder="Password" required minlength="4" autocomplete="current-password">
+                        <button type="button" class="auth-reveal" id="toggle-password" aria-label="Show password">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="auth-error" id="password-error"></p>
+                </div>
+                <button type="submit" class="auth-submit" id="btn-login">
+                    Sign in
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const authCheck = document.getElementById('auth-check');
+    const loginForm = document.getElementById('login-form');
+
+    // Route to the right page for an already-authenticated user (relative paths only)
+    function routeAfterLogin(data) {
+        if (!data.is_activated) {
+            window.location.href = appUrl('/activation');
+        } else if (!data.credentials_changed) {
+            window.location.href = appUrl('/setup');
+        } else {
+            window.location.href = appUrl('/landing');
+        }
+    }
+
+    function showLoginForm() {
+        authCheck.classList.add('hidden');
+        loginForm.style.display = 'block';
+        loginForm.classList.remove('hidden');
+    }
+
+    // Form submission. Wired before the session check below, which can end in
+    // showLoginForm() long after this script ran: a form shown without its
+    // handler submits natively, putting the password in the URL (GET /login?...)
+    // and making the user log in twice.
+    const form = document.getElementById('form-login');
+    const btnLogin = document.getElementById('btn-login');
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const usernameError = document.getElementById('username-error');
+    const passwordError = document.getElementById('password-error');
+
+    // Reveal button. Only ever flips the input's type, so the value is never
+    // copied anywhere and autofill keeps working.
+    const togglePassword = document.getElementById('toggle-password');
+    const EYE_OPEN = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+    const EYE_OFF = '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c6.5 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3.5 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>';
+    togglePassword.addEventListener('click', () => {
+        const showing = passwordInput.type === 'text';
+        passwordInput.type = showing ? 'password' : 'text';
+        togglePassword.querySelector('svg').innerHTML = showing ? EYE_OPEN : EYE_OFF;
+        togglePassword.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        passwordInput.focus();
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // Reset errors
+        usernameError.textContent = '';
+        passwordError.textContent = '';
+
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+        let valid = true;
+
+        if (username.length < 4) {
+            usernameError.textContent = 'Username must be at least 4 characters';
+            valid = false;
+        }
+        if (password.length < 4) {
+            passwordError.textContent = 'Password must be at least 4 characters';
+            valid = false;
+        }
+
+        if (!valid) return;
+
+        // Disable form
+        btnLogin.disabled = true;
+        usernameInput.disabled = true;
+        passwordInput.disabled = true;
+        btnLogin.innerHTML = '<div class="spinner spinner-sm spinner-light"></div> Signing in...';
+
+        try {
+            const response = await fetch(`${getApiUrl()}/users/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
+
+            if (!response.ok) {
+                ToastManager.error('Sign in failed', 'Incorrect username or password.');
+                return;
+            }
+
+            const data = await response.json();
+            data.loginAt = Date.now();
+            sessionStorage.setItem('userData', JSON.stringify(data));
+
+            ToastManager.success('Signed in', 'Taking you to the next page...');
+            setTimeout(() => {
+                routeAfterLogin(data);
+            }, 1500);
+        } catch (error) {
+            console.error('Sign in failed:', error);
+            ToastManager.error('Sign in failed', 'Could not reach the server. Please try again.');
+        } finally {
+            btnLogin.disabled = false;
+            usernameInput.disabled = false;
+            passwordInput.disabled = false;
+            btnLogin.innerHTML = 'Sign in';
+        }
+    });
+
+    // Check if already logged in.
+    //
+    // sessionStorage alone is not enough to answer this: it survives in the tab
+    // while the server session can end underneath it (an update or a restart
+    // invalidates the cookie). Trusting it then sent this page to /landing,
+    // which the server bounced straight back to /login, and the tab flipped
+    // between the two forever. Ask the server before routing, and drop the
+    // stale copy when it says no.
+    const rawData = sessionStorage.getItem('userData');
+    if (rawData === null) {
+        showLoginForm();
+        return;
+    }
+    let parsed = null;
+    try {
+        parsed = JSON.parse(rawData);
+    } catch (e) {
+        sessionStorage.removeItem('userData');
+        showLoginForm();
+        return;
+    }
+    fetch('/api/session', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : { authenticated: false }))
+        .then((d) => {
+            if (d && d.authenticated) {
+                routeAfterLogin(parsed);
+            } else {
+                sessionStorage.removeItem('userData');
+                showLoginForm();
+            }
+        })
+        .catch(() => {
+            // Server unreachable (it restarts during an update): show the
+            // form rather than bouncing into a page that cannot load.
+            sessionStorage.removeItem('userData');
+            showLoginForm();
+        });
+})();
+</script>
+{% endblock %}

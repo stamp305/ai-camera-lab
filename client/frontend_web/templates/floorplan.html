@@ -1,0 +1,361 @@
+{% extends "layout_navbar.html" %}
+{% block title %}Floor Plan - AI Camera{% endblock %}
+{% block crumb_parent %}Store Setup{% endblock %}
+{% block crumb_current %}Floor Plan{% endblock %}
+
+{% block content %}
+<div class="ac-page">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px;">
+        <div>
+            <h1 class="ac-page-title">Floor Plan</h1>
+            <p class="ac-page-sub">Add your store's floor plans and calibrate them against each camera</p>
+        </div>
+        <button id="btn-add" class="ac-btn ac-btn-dark ac-btn-lg">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add Floor Plan
+        </button>
+    </div>
+
+    <div id="loading" class="ac-empty"><div class="ac-spinner"></div></div>
+
+    <div id="empty" class="ac-card ac-empty ac-hidden" style="border:0;">
+        <div class="ac-empty-icon"><svg viewBox="0 0 24 24"><path d="M4 21V4a1 1 0 0 1 1-1h7v18M4 9h4M4 14h4M12 8h4M12 13h2"/><rect x="15" y="15" width="6" height="5" rx="1"/><path d="M16.5 15v-1.5a1.5 1.5 0 0 1 3 0V15"/></svg></div>
+        <h3>No Floor Plan yet</h3>
+        <p>Add your first floor plan, then calibrate it against your cameras to map where customers go.</p>
+        <button id="btn-empty-add" class="ac-btn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add Floor Plan</button>
+    </div>
+
+    <div id="error" class="ac-empty ac-hidden">
+        <h3>Could not load floor plans</h3>
+        <p id="error-text"></p>
+        <button id="btn-retry" class="ac-btn ac-btn-sm">Try again</button>
+    </div>
+
+    <div id="wrap" class="ac-card ac-hidden" style="padding:24px;">
+        <h2 class="ac-card-title" style="margin-bottom:16px;">Floorplan</h2>
+        <label class="ac-search" style="display:flex;margin-bottom:20px;">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <input id="search" class="ac-input" type="text" placeholder="Search">
+        </label>
+        <div id="grid" class="fp-grid"></div>
+        <p id="no-match" class="ac-hidden" style="padding:32px 0;text-align:center;font-size:14px;color:#8a8a8a;">No floor plans match your search.</p>
+    </div>
+</div>
+
+<!-- Add / Edit Floorplan -->
+<div id="modal-form" class="ac-modal" hidden>
+    <div class="ac-modal-box">
+        <div class="ac-modal-head"><h2 id="form-title">Add Floor Plan</h2></div>
+        <form id="form" class="ac-modal-body">
+            <div class="ac-field">
+                <label class="ac-label" for="f-name">Floor Plan name</label>
+                <input class="ac-input" id="f-name" placeholder="Floor Plan name" maxlength="255" required>
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="f-desc">Description</label>
+                <input class="ac-input" id="f-desc" placeholder="Description" maxlength="500">
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="f-group">Group</label>
+                <select class="ac-input" id="f-group"></select>
+            </div>
+            <div style="margin-bottom:0;">
+                <span class="ac-label">Floor plan image (<span id="img-count">0</span>/1)</span>
+                <label id="drop" class="ac-drop">
+                    <strong>Choose images or drag &amp; drop it here.</strong>
+                    <small>JPG, JPEG, PNG Max 10 MB</small>
+                    <span class="ac-btn ac-btn-sm" style="pointer-events:none;">
+                        <svg viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>Upload
+                    </span>
+                    <input type="file" id="f-image" accept="image/png,image/jpeg" hidden>
+                </label>
+                <div id="thumb" class="ac-thumb ac-hidden">
+                    <img id="thumb-img" alt="">
+                    <button type="button" id="thumb-remove" title="Remove image"><svg viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+                </div>
+            </div>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" data-close="modal-form">Cancel</button>
+                <button type="submit" class="ac-btn ac-btn-dark ac-btn-lg" id="btn-save" disabled>Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Floorplan -->
+<div id="modal-delete" class="ac-modal" hidden>
+    <div class="ac-modal-box">
+        <div class="ac-modal-head"><h2 id="delete-title">Delete floor plan?</h2></div>
+        <div class="ac-modal-body">
+            <p class="ac-modal-text">This will remove the floor plan and every camera calibration linked to it. This action cannot be undone.</p>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" data-close="modal-delete">Cancel</button>
+                <button type="button" class="ac-btn ac-btn-danger ac-btn-lg" id="btn-confirm-delete">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<style>
+.fp-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 1100px) { .fp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .fp-grid { grid-template-columns: minmax(0, 1fr); } }
+.fp-card { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 16px; border: 1px solid #e5e5e5; border-radius: 8px; background: #fff; }
+.fp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.fp-name { height: 22px; line-height: 22px; font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp-group { margin-top: 2px; height: 18px; line-height: 18px; font-size: 12px; color: #5a5a5a; }
+/* Fixed line heights (Thai glyphs grow the line box) and an always-rendered, possibly blank
+   description keep every card the same height. */
+.fp-desc { margin-top: 2px; height: 20px; line-height: 20px; font-size: 13px; color: #8a8a8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Fixed box: whatever the image's size, it is scaled down to fit inside, never stretching the card. */
+.fp-img { position: relative; width: 100%; aspect-ratio: 290 / 200; overflow: hidden; background: #fff; }
+.fp-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.fp-status { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border-radius: 4px; background: #ebf9ef; color: #16a34a; font-size: 11px; }
+.fp-cal { width: 100%; height: 44px; }
+</style>
+<script>
+(function() {
+    const API = getApiUrl();
+    const MAX_BYTES = 10 * 1024 * 1024;
+    const esc = window.acEscape;
+    const $ = (id) => document.getElementById(id);
+
+    let floorplans = [];
+    let mode = 'create';
+    let editing = null;
+    let file = null;
+    let objectUrl = null;
+    let existingImage = null;
+    let deleting = null;
+    const NEW_GROUP = '__new__';
+    const groupOf = (f) => f.floorplanGroup ?? f.floorplan_group ?? 1;
+
+    // Images are served by data_service, so they go through the same proxy as the API.
+    function imageUrl(path) {
+        if (!path) return '';
+        if (/^(https?:|blob:)/.test(path)) return path;
+        return `${API}/${path.replace(/^\//, '')}`;
+    }
+
+    document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => acModal.close(b.dataset.close)));
+    $('search').addEventListener('input', render);
+    $('btn-retry').addEventListener('click', load);
+
+    async function load() {
+        ['empty', 'error', 'wrap'].forEach(id => $(id).classList.add('ac-hidden'));
+        $('loading').classList.remove('ac-hidden');
+        try {
+            const res = await fetch(`${API}/floorplan`, { headers: { Accept: 'application/json' } });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            floorplans = Array.isArray(data) ? data : [];
+            $('loading').classList.add('ac-hidden');
+            render();
+        } catch (err) {
+            console.error(err);
+            $('loading').classList.add('ac-hidden');
+            $('error-text').textContent = err.message;
+            $('error').classList.remove('ac-hidden');
+        }
+    }
+
+    function render() {
+        const q = $('search').value.trim().toLowerCase();
+        const rows = floorplans.filter(f => !q || [f.name, f.description].some(v => String(v || '').toLowerCase().includes(q)));
+        // Empty page only when there are none at all; a search with no hits keeps the card (and its search box).
+        $('empty').classList.toggle('ac-hidden', floorplans.length > 0);
+        $('wrap').classList.toggle('ac-hidden', floorplans.length === 0);
+        $('no-match').classList.toggle('ac-hidden', rows.length > 0 || floorplans.length === 0);
+
+        $('grid').innerHTML = rows.map(f => {
+            const img = imageUrl(f.imageUrl || f.image_url);
+            const calibrated = f.isCalibrated ?? f.is_calibrated;
+            const cams = f.cameraCount ?? f.camera_count ?? 0;
+            return `
+                <div class="fp-card">
+                    <div class="fp-head">
+                        <div style="min-width:0;">
+                            <div class="fp-name">${esc(f.name)}</div>
+                            <div class="fp-group">Group ${groupOf(f)}</div>
+                            <div class="fp-desc">${esc(f.description || '')}</div>
+                        </div>
+                        <div class="ac-pill-wrap">
+                            <button class="ac-kebab" data-menu="${f.id}" title="More"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+                            <div class="ac-menu right" hidden style="min-width:150px;">
+                                <button data-edit="${f.id}"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Edit</button>
+                                <hr>
+                                <button class="danger" data-delete="${f.id}"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fp-img" title="${calibrated ? 'Calibrated' : 'Not calibrated'} · ${cams} camera${cams === 1 ? '' : 's'}">
+                        ${img ? `<img src="${esc(img)}" alt="" onerror="this.remove()">` : ''}
+                        ${calibrated ? `<span class="fp-status">${cams} camera${cams === 1 ? '' : 's'} calibrated</span>` : ''}
+                    </div>
+                    <button class="ac-btn ac-btn-dark fp-cal" data-calibrate="${f.id}">Calibrate</button>
+                </div>`;
+        }).join('');
+
+        const grid = $('grid');
+        grid.querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const m = b.nextElementSibling, open = m.hidden;
+            document.querySelectorAll('.ac-menu').forEach(x => { x.hidden = true; });
+            m.hidden = !open;
+        }));
+        const find = (id) => floorplans.find(f => String(f.id) === id);
+        grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openForm(find(b.dataset.edit))));
+        grid.querySelectorAll('[data-calibrate]').forEach(b => b.addEventListener('click', () => {
+            window.location.href = appUrl(`/floorplan/calibrate?id=${b.dataset.calibrate}`);
+        }));
+        grid.querySelectorAll('[data-delete]').forEach(b => b.addEventListener('click', () => {
+            deleting = find(b.dataset.delete);
+            b.closest('.ac-menu').hidden = true;
+            $('delete-title').textContent = `Delete ${deleting.name}?`;
+            acModal.open('modal-delete');
+        }));
+    }
+
+    // ---- Add / Edit ----
+    function setImage(src) {
+        $('thumb').classList.toggle('ac-hidden', !src);
+        $('drop').classList.toggle('ac-hidden', !!src);
+        $('thumb-img').src = src || '';
+        $('img-count').textContent = src ? '1' : '0';
+        updateSave();
+    }
+
+    // Save stays greyed out until there is a name and an image (mockup).
+    function updateSave() {
+        const hasImage = !!file || !!existingImage;
+        $('btn-save').disabled = !($('f-name').value.trim() && hasImage);
+    }
+    $('f-name').addEventListener('input', updateSave);
+
+    // Groups let multiple floor plans (e.g. different store branches) be tracked together.
+    // Before the first floor plan exists there's nothing to group against, so the picker
+    // just shows "Group 1"; from the second floor plan on, it offers every group already
+    // in use plus a "New Group" choice that runs the numbering up by one.
+    function populateGroupSelect(preselect) {
+        const sel = $('f-group');
+        sel.innerHTML = '';
+        if (floorplans.length === 0) {
+            sel.appendChild(new Option('Group 1', '1'));
+            sel.value = '1';
+            sel.disabled = true;
+            return;
+        }
+        sel.disabled = false;
+        const groups = [...new Set(floorplans.map(groupOf))].sort((a, b) => a - b);
+        groups.forEach(g => sel.appendChild(new Option(`Group ${g}`, String(g))));
+        sel.appendChild(new Option('+ New Group', NEW_GROUP));
+
+        const lastUsedGroup = groupOf(floorplans[floorplans.length - 1]);
+        const value = preselect != null ? String(preselect) : String(lastUsedGroup);
+        sel.value = [...sel.options].some(o => o.value === value) ? value : String(lastUsedGroup);
+    }
+
+    function openForm(f) {
+        document.querySelectorAll('.ac-menu').forEach(x => { x.hidden = true; });
+        mode = f ? 'edit' : 'create';
+        editing = f || null;
+        file = null;
+        if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+        $('f-image').value = '';
+        $('form-title').textContent = f ? 'Edit Floor Plan' : 'Add Floor Plan';
+        $('f-name').value = f ? f.name : '';
+        $('f-desc').value = f ? (f.description || '') : '';
+        populateGroupSelect(f ? groupOf(f) : null);
+        existingImage = f ? imageUrl(f.imageUrl || f.image_url) : null;
+        setImage(existingImage);
+        acModal.open('modal-form');
+        $('f-name').focus();
+    }
+    $('btn-add').addEventListener('click', () => openForm(null));
+    $('btn-empty-add').addEventListener('click', () => openForm(null));
+
+    function takeFile(f) {
+        if (!f) return;
+        if (!/^image\/(png|jpe?g)$/.test(f.type)) return ToastManager.error('Please choose a JPG or PNG image');
+        if (f.size > MAX_BYTES) return ToastManager.error('Image is larger than 10 MB');
+        file = f;
+        if (objectUrl) URL.revokeObjectURL(objectUrl);
+        objectUrl = URL.createObjectURL(f);
+        setImage(objectUrl);
+    }
+    $('f-image').addEventListener('change', (e) => takeFile(e.target.files[0]));
+    const drop = $('drop');
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+    drop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        drop.classList.remove('dragover');
+        takeFile(e.dataTransfer.files[0]);
+    });
+    $('thumb-remove').addEventListener('click', () => {
+        file = null;
+        existingImage = null;
+        $('f-image').value = '';
+        setImage(null);
+    });
+
+    $('form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = $('f-name').value.trim();
+        if (!name) return ToastManager.error('Please enter a floor plan name');
+        if (mode === 'create' && !file) return ToastManager.error('Please upload a floor plan image');
+        if (mode === 'edit' && !file && !existingImage) return ToastManager.error('Please upload a floor plan image');
+
+        let groupValue = $('f-group').value;
+        if (groupValue === NEW_GROUP) {
+            const groups = floorplans.map(groupOf);
+            groupValue = groups.length ? Math.max(...groups) + 1 : 1;
+        } else {
+            groupValue = parseInt(groupValue, 10) || 1;
+        }
+
+        const fd = new FormData();
+        fd.append('name', name);
+        fd.append('description', $('f-desc').value.trim());
+        fd.append('floorplanGroup', String(groupValue));
+        if (file) fd.append('image', file);
+
+        $('btn-save').disabled = true;
+        try {
+            const res = await fetch(mode === 'edit' ? `${API}/floorplan/${editing.id}` : `${API}/floorplan`, {
+                method: mode === 'edit' ? 'PUT' : 'POST',
+                body: fd,
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || `HTTP ${res.status}`);
+            }
+            acModal.close('modal-form');
+            ToastManager.success(mode === 'edit' ? 'Floor Plan updated successfully' : 'Floor Plan added successfully');
+            load();
+        } catch (err) {
+            ToastManager.error('Could not save floor plan', err.message);
+        } finally { updateSave(); }
+    });
+
+    $('btn-confirm-delete').addEventListener('click', async (e) => {
+        if (!deleting) return;
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${API}/floorplan/${deleting.id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            acModal.close('modal-delete');
+            ToastManager.success('Floor Plan deleted');
+            load();
+        } catch (err) {
+            ToastManager.error('Could not delete floor plan', err.message);
+        } finally { btn.disabled = false; }
+    });
+
+    load();
+})();
+</script>
+{% endblock %}

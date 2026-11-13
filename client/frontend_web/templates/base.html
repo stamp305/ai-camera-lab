@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="api-base-url" content="{{ api_base_url | default('') }}">
+    <title>{% block title %}AI Camera{% endblock %}</title>
+    <!-- Without these Safari draws a grey "1" (from 127.0.0.1) beside every tab title. -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/images/icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="/static/images/icons/favicon-64.png">
+    <link rel="apple-touch-icon" href="/static/images/icons/apple-touch-icon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Same cache-buster app.js already carries. Without it a browser keeps the
+         stylesheet it cached before an update, so a release that changes the CSS
+         renders unstyled until the user knows to hard-refresh. -->
+    <link rel="stylesheet" href="/static/css/styles.css?v={{ range(1, 1000000) | random }}">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    {% block body %}{% endblock %}
+    <script src="/static/js/app.js?v={{ range(1, 1000000) | random }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

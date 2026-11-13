@@ -1,0 +1,60 @@
+<!-- templates/manage_service.html -->
+{% extends "base.html" %}
+
+{% block title %}Manage Master Services - AI Camera{% endblock %}
+
+{% block content %}
+<header class="main-header">
+    <div>
+        <h1>จัดการบริการหลัก</h1>
+        <p>เพิ่ม, ลบ, หรือดูรายละเอียดของบริการทั้งหมดในระบบ (รวมถึงแพ็คเกจที่สร้างขึ้นเอง)</p>
+    </div>
+</header>
+
+<div class="manage-grid">
+    <!-- List of existing services -->
+    <div class="card">
+        <div class="card-header-title" style="padding: 24px 24px 0;">รายการบริการทั้งหมด</div>
+        <div id="master-service-list" class="card-content" style="padding: 8px 24px 24px;">
+            <p class="loading-state">กำลังโหลดบริการ...</p>
+        </div>
+    </div>
+
+    <!-- Add a new service -->
+    <div class="card">
+        <div class="card-header-title" style="padding: 24px 24px 0;">เพิ่มบริการใหม่</div>
+        <form id="add-master-service-form">
+            <div class="card-content" style="padding: 8px 24px 24px;">
+                <div class="form-group">
+                    <label for="new_service_name">ชื่อบริการ (Service Name)</label>
+                    <input type="text" id="new_service_name" placeholder="e.g., Anomaly Detection" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_service_description">คำอธิบาย (Description)</label>
+                    <textarea id="new_service_description" rows="4" placeholder="Explain what this service does."
+                        required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="new_service_folder_dlc">DLC Folder Backend</label>
+                    <select id="new_service_folder_dlc" required>
+                        <option value="" disabled selected>-- กำลังโหลดโฟลเดอร์ --</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="new_service_package">Package</label>
+                    <select id="new_service_package" required>
+                        <option value="" disabled selected>-- กำลังโหลดแพ็คเกจ --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="card-footer">
+                <button type="submit" class="btn btn-primary">เพิ่มบริการ</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/manage_service.js') }}"></script>
+{% endblock %}

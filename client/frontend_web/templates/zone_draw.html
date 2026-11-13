@@ -1,0 +1,124 @@
+{% extends "layout_navbar.html" %}
+{% block title %}Zone Area - AI Camera{% endblock %}
+{% block crumb_parent %}Detection Setup{% endblock %}
+{% block crumb_current %}Zone Area{% endblock %}
+
+{% block content %}
+<style>
+    /* Count Zone / Check Out: the full width of the side panel, the chosen one dark. */
+    .zt-seg { display: flex; width: 100%; margin-bottom: 16px; border-color: var(--ac-border-strong); }
+    .zt-seg button { flex: 1; color: var(--ac-text); font-weight: 500; }
+    .zt-seg button.is-active { background: var(--ac-dark); color: #fff; }
+</style>
+<div id="zone-editor"></div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="/static/js/shape_tools.js?v={{ range(1, 1000000) | random }}"></script>
+<script src="/static/js/zone_editor.js?v={{ range(1, 1000000) | random }}"></script>
+<script>
+(function() {
+    const val = (id) => (document.getElementById(id) || {}).value || '';
+    const CHECKOUT_DURATION = '60';
+    // Count Zone is the hotzone as it always was; Check Out fills in checkout_<n> and 60 seconds.
+    let zoneType = 'count';
+    let autoFill = null;  // the name/duration Check Out filled in, cleared again on Count Zone
+
+    async function nextCheckoutName(api) {
+        const all = await fetch(`${api.api}/polygons`).then(r => r.json());
+        const names = new Set(all.map(p => p.name));
+        let n = all.filter(p => p.type === 'checkout').length + 1;
+        while (names.has(`checkout_${n}`)) n++;  // a deleted checkout_1 must not give a second checkout_2
+        return `checkout_${n}`;
+    }
+
+    async function setZoneType(t, api) {
+        zoneType = t;
+        document.querySelectorAll('[data-zone-type]').forEach(b => b.classList.toggle('is-active', b.dataset.zoneType === t));
+        if (api.renderList) api.renderList();  // Saved Polygon shows only this type's zones
+        const name = document.getElementById('zone-name'), duration = document.getElementById('zone-duration');
+        if (t === 'checkout') {
+            let next = 'checkout_1';
+            try { next = await nextCheckoutName(api); } catch (err) { console.error(err); }
+            if (zoneType !== 'checkout') return;
+            name.value = next;
+            duration.value = CHECKOUT_DURATION;
+            autoFill = { name: next, duration: CHECKOUT_DURATION };
+        } else if (autoFill) {
+            if (name.value === autoFill.name) name.value = '';
+            if (duration.value === autoFill.duration) duration.value = '';
+            autoFill = null;
+        }
+        api.refresh();
+    }
+
+    ZoneEditor.mount(document.getElementById('zone-editor'), {
+        title: 'Zone Area',
+        subtitle: 'Draw zones and set how long a customer must stay to count as engaged',
+        svc: 'hotzone_service',
+        serviceName: 'hotzone',
+        label: (p, i) => p.name || `Zone ${i + 1}`,
+        listFilter: (p) => (p.type || 'count') === zoneType,
+        tag: (p) => {
+            const secs = p.duration != null ? `${p.duration} second${Number(p.duration) === 1 ? '' : 's'}` : '';
+            return p.type === 'checkout' ? `Check Out${secs ? ` · ${secs}` : ''}` : secs;
+        },
+
+        renderSide(side, api) {
+            side.innerHTML = `
+                <div class="ac-seg zt-seg">
+                    <button data-zone-type="count">Count Zone</button>
+                    <button data-zone-type="checkout">Check Out</button>
+                </div>
+                <div class="ac-field"><label class="ac-label" for="zone-name">Zone name</label><input class="ac-input" id="zone-name" placeholder="e.g. Entrance"></div>
+                <div class="ac-field" style="margin-bottom:0;"><label class="ac-label" for="zone-duration">Visit Duration (seconds)</label><input class="ac-input" type="number" min="0" id="zone-duration" placeholder="e.g. 60"></div>`;
+            side.querySelectorAll('input').forEach(i => i.addEventListener('input', api.refresh));
+            side.querySelectorAll('[data-zone-type]').forEach(b => b.addEventListener('click', () => setZoneType(b.dataset.zoneType, api)));
+            setZoneType('count', api);
+        },
+
+        // Edit: the zone's own name, duration and type fill the side panel; its type stays.
+        editable: true,
+        onEditStart(p, api) {
+            zoneType = p.type || 'count';
+            autoFill = null;
+            document.querySelectorAll('[data-zone-type]').forEach(b => {
+                b.classList.toggle('is-active', b.dataset.zoneType === zoneType);
+                b.disabled = true;
+                b.title = 'The type of a saved zone stays as it is';
+            });
+            document.getElementById('zone-name').value = p.name || '';
+            document.getElementById('zone-duration').value = p.duration != null ? String(p.duration) : '';
+            api.renderList();
+            api.refresh();
+        },
+        onEditEnd(api) {
+            document.querySelectorAll('[data-zone-type]').forEach(b => { b.disabled = false; b.title = ''; });
+            document.getElementById('zone-name').value = '';
+            document.getElementById('zone-duration').value = '';
+            setZoneType(zoneType, api);
+        },
+
+        validate() {
+            if (!val('zone-name').trim()) return 'Enter a zone name';
+            if (val('zone-duration') === '') return 'Enter a duration';
+            return null;
+        },
+
+        extendPayload(payload) {
+            payload.type = zoneType;
+            payload.name = val('zone-name').trim();
+            payload.duration = Number(val('zone-duration'));
+        },
+
+        afterSave(api) {
+            document.getElementById('zone-name').value = '';
+            document.getElementById('zone-duration').value = '';
+            autoFill = null;
+            setZoneType('count', api);
+        },
+    });
+})();
+</script>
+{% endblock %}

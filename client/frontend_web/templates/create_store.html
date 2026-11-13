@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}สร้างข้อมูลร้านค้า - AI Camera{% endblock %}
+
+{% block body %}
+<!-- Loading State -->
+<div id="page-loading" class="flex h-screen w-full items-center justify-center bg-gray-50">
+    <div class="text-center font-semibold text-gray-500">
+        <div class="spinner spinner-lg mb-4 mx-auto"></div>
+        Verifying Setup...
+    </div>
+</div>
+
+<!-- Create Store Form -->
+<div id="create-store-container" class="hidden" style="display:none;">
+    <div class="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4">
+        <div class="card" style="width:100%;max-width:32rem;padding:2rem;">
+            <div class="text-center mb-6">
+                <h1 class="text-2xl font-bold">เปิดใช้งานระบบครั้งแรก</h1>
+                <p class="text-gray-600">โปรดกรอกข้อมูลของร้านสาขา</p>
+            </div>
+            
+            <form id="form-create-store" class="space-y-6" novalidate>
+                <div style="display:grid;gap:1rem;">
+                    <!-- ID -->
+                    <div style="display:grid;grid-template-columns:1fr 3fr;align-items:center;gap:1rem;">
+                        <label for="id" class="text-right text-sm font-medium">รหัสสาขา</label>
+                        <input type="text" id="id" name="id" class="form-input" placeholder="เช่น 101, 102" required>
+                    </div>
+                    <!-- Name -->
+                    <div style="display:grid;grid-template-columns:1fr 3fr;align-items:center;gap:1rem;">
+                        <label for="name" class="text-right text-sm font-medium">ชื่อของสาขา</label>
+                        <input type="text" id="name" name="name" class="form-input" required>
+                    </div>
+                    <!-- Region -->
+                    <div style="display:grid;grid-template-columns:1fr 3fr;align-items:center;gap:1rem;">
+                        <label for="region" class="text-right text-sm font-medium">ภูมิภาค</label>
+                        <input type="text" id="region" name="region" class="form-input" required>
+                    </div>
+                    <!-- Province -->
+                    <div style="display:grid;grid-template-columns:1fr 3fr;align-items:center;gap:1rem;">
+                        <label for="province" class="text-right text-sm font-medium">จังหวัด</label>
+                        <input type="text" id="province" name="province" class="form-input" required>
+                    </div>
+                    <!-- Open Time -->
+                    <div style="display:grid;grid-template-columns:1fr 3fr;align-items:center;gap:1rem;">
+                        <label for="open_time" class="text-right text-sm font-medium">เวลาเปิดทำการ</label>
+                        <input type="time" id="open_time" name="open_time" class="form-input" value="09:00" style="width:fit-content;" required>
+                    </div>
+                    <!-- Close Time -->
+                    <div style="display:grid;grid-template-columns:1fr 3fr;align-items:center;gap:1rem;">
+                        <label for="close_time" class="text-right text-sm font-medium">เวลาปิดทำการ</label>
+                        <input type="time" id="close_time" name="close_time" class="form-input" value="18:00" style="width:fit-content;" required>
+                    </div>
+                </div>
+
+                <div class="flex justify-end pt-4">
+                    <button type="submit" class="btn btn-primary" id="btn-submit" style="width:100%;">
+                        บันทึกข้อมูล
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async function() {
+    const loading = document.getElementById('page-loading');
+    const container = document.getElementById('create-store-container');
+
+    // First check if store data already exists
+    try {
+        const response = await fetch(`${getApiUrl()}/store`);
+        if (response.ok) {
+            // Store exists, go to landing
+            window.location.href = appUrl('/landing');
+            return;
+        } else if (response.status === 404) {
+            // Need to create store
+            ToastManager.info("Initial setup required", "Redirecting you to the store creation page.", 3000);
+            loading.classList.add('hidden');
+            container.style.display = 'flex';
+            container.classList.remove('hidden');
+        } else {
+            throw new Error(`Server responded with status: ${response.status}`);
+        }
+    } catch (error) {
+        console.error("Failed to check for store data:", error);
+        ToastManager.error("Connection Error", "Could not verify store information.");
+        // Still show form to allow creation attempt
+        loading.classList.add('hidden');
+        container.style.display = 'flex';
+        container.classList.remove('hidden');
+    }
+
+    // Form submission
+    const form = document.getElementById('form-create-store');
+    const btnSubmit = document.getElementById('btn-submit');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = {
+            id: document.getElementById('id').value.trim(),
+            name: document.getElementById('name').value.trim(),
+            region: document.getElementById('region').value.trim(),
+            province: document.getElementById('province').value.trim(),
+            open_time: document.getElementById('open_time').value,
+            close_time: document.getElementById('close_time').value
+        };
+
+        if (!formData.id || !formData.name || !formData.region || !formData.province) {
+            ToastManager.error('Failed', 'กรุณากรอกข้อมูลให้ครบถ้วน');
+            return;
+        }
+
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<div class="spinner spinner-sm spinner-light"></div> บันทึกข้อมูล...';
+
+        try {
+            const response = await fetch(`${getApiUrl()}/store`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: "Failed to save the new store" }));
+                throw new Error(errorData.message || errorData.detail || 'Unknown error');
+            }
+
+            ToastManager.success("Store created successfully!", "Redirecting you to the dashboard.", 1500);
+            
+            setTimeout(() => {
+                window.location.href = appUrl('/landing');
+            }, 1500);
+
+        } catch (error) {
+            console.error(error);
+            ToastManager.error("Failed to Create Store", error.message || 'Could not save data.');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = 'บันทึกข้อมูล';
+        }
+    });
+})();
+</script>
+{% endblock %}

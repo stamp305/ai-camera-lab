@@ -1,0 +1,81 @@
+<!-- templates/manage_dlc.html -->
+{% extends "base.html" %}
+
+{% block title %}Manage Services - AI Camera{% endblock %}
+
+{% block content %}
+<div id="dlc-manager" data-activation-code="{{ activation_code }}">
+    <header class="main-header">
+        <div>
+            <h1>จัดการบริการ</h1>
+            <p>สำหรับ Activation Code: <strong class="code-highlight">{{ activation_code }}</strong></p>
+        </div>
+    </header>
+
+    <div class="manage-grid">
+        <!-- User's current configuration -->
+        <div class="card">
+            <div class="card-header-title" style="padding: 24px 24px 0;">ข้อมูลปัจจุบัน</div>
+            <div id="current-config-container" class="card-content" style="padding: 8px 24px 24px;">
+                <!-- Current package info will be injected here -->
+                <p class="loading-state">กำลังโหลดข้อมูลผู้ใช้...</p>
+            </div>
+            <div class="card-header-title" style="padding: 24px 24px 0; border-top: 1px solid var(--border-color);">
+                บริการที่ใช้งานอยู่</div>
+            <div id="current-service-list" class="card-content" style="padding: 8px 24px 24px;">
+                <!-- Current service list will be injected here -->
+            </div>
+        </div>
+
+        <!-- Edit configuration -->
+        <div class="card">
+            <div class="card-header-title" style="padding: 24px 24px 0;">แก้ไขการตั้งค่า</div>
+            <form id="edit-services-form">
+                <div class="card-content" style="padding: 8px 24px 24px;">
+                    <!-- NEW: Package Upgrade Section -->
+                    <div class="form-group">
+                        <label for="package-select">อัปเกรดแพ็คเกจ</label>
+                        <!-- ตัวเลือกจริงถูกเติมจาก /api/packages ตอนโหลดหน้า
+                             (manage_dlc.js: loadPackages) รายการข้างล่างเป็นแค่
+                             ค่าสำรองเผื่อเรียก API ไม่ได้ -->
+                        <select id="package-select">
+                            <option value="Basic">Basic</option>
+                            <option value="Pro">Pro</option>
+                        </select>
+                    </div>
+                    <hr class="form-divider">
+                    <div class="services-header" style="display:flex; align-items:center; gap:12px; margin:6px 0 12px;">
+                        <label style="font-weight: 500; margin:0;">บริการที่สามารถเลือกได้</label>
+                        <button type="button" id="select-all-services-btn"
+                            class="btn btn-secondary btn-sm">เลือกทั้งหมด</button>
+                    </div>
+                    <div id="all-services-list-container">
+                        <p class="loading-state">กำลังโหลดรายการบริการ...</p>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button type="submit" id="save-services-btn" class="btn btn-primary" disabled
+                        data-idle-text="บันทึกการเปลี่ยนแปลง"
+                        data-wait-text="กำลังบันทึก...">บันทึกการเปลี่ยนแปลง</button>
+                    <div id="dlc-progress-wrapper" style="margin-top:8px; display:none;">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+                            <span id="dlc-progress-label">กำลังส่งไฟล์...</span>
+                            <span id="dlc-progress-count">0 / 0</span>
+                        </div>
+                        <div
+                            style="position:relative; height:6px; background:#eee; border-radius:4px; overflow:hidden;">
+                            <div id="dlc-progress-bar" style="position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg,#3b82f6,#06b6d4);
+                                transition:width .3s ease;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/manage_dlc.js') }}"></script>
+{% endblock %}

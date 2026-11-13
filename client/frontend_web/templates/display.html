@@ -1,0 +1,323 @@
+{% extends "layout_navbar.html" %}
+{% block crumb_parent %}{% endblock %}
+{% block crumb_current %}Live Display{% endblock %}
+{% block title %}Live Display - AI Camera{% endblock %}
+
+{% block content %}
+<div class="ac-page">
+    <div class="ac-page-head">
+        <h1 class="ac-page-title">Live Display</h1>
+        <p class="ac-page-sub">Watch each camera's live stream with its detection zones drawn on top</p>
+    </div>
+
+    <div id="loading" class="ac-empty"><div class="ac-spinner"></div></div>
+
+    <div id="empty" class="ac-empty ac-hidden">
+        <div class="ac-empty-icon"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg></div>
+        <h3 id="empty-title">No live streams</h3>
+        <p id="empty-text">Streams appear here once cameras are selected and a detection service is running.</p>
+    </div>
+
+    <div id="main" class="ac-hidden">
+        <div class="ac-pill-row">
+            <div class="ac-pill-wrap">
+                <button class="ac-pill" id="cam-btn">Camera<span class="val" id="cam-val">-</span>
+                    <svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+                </button>
+                <div class="ac-menu" id="cam-menu" hidden></div>
+            </div>
+            <div class="ac-pill-wrap" id="svc-wrap">
+                <button class="ac-pill" id="svc-btn">Service<span class="val" id="svc-val">-</span>
+                    <svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+                </button>
+                <div class="ac-menu" id="svc-menu" hidden></div>
+            </div>
+        </div>
+
+        <div class="ac-card" style="display:grid;grid-template-columns:minmax(0,1fr) 360px;">
+            <div style="padding:24px;border-right:1px solid #e5e5e5;">
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;min-height:40px;">
+                    <h2 class="ac-card-title" id="card-title"></h2>
+                </div>
+                <div id="canvas" style="position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#1f2937;">
+                    <img id="stream" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;">
+                    <svg id="svg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
+                    <div id="stream-error" class="ac-hidden" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.55);color:#fff;font-size:14px;">
+                        Stream unavailable
+                    </div>
+                </div>
+                <p id="poly-count" style="margin-top:20px;text-align:center;font-size:15px;color:var(--ac-text);">Total Polygon : 0</p>
+            </div>
+            <div style="padding:24px;">
+                <div class="ze-saved">
+                    <h3 class="ac-card-title" style="margin-bottom:14px;">Saved Polygon</h3>
+                    <div id="list" style="display:grid;gap:10px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function() {
+    const API = getApiUrl();
+    // Each zone service's Zone Settings and live view, through the frontend route; built like
+    // getApiUrl() because the live view loads in an img tag, outside the fetch hook.
+    const SVC = `${window.location.protocol}//${window.location.host}${appUrl('api/svc')}`;
+    // Page name -> the service that owns its zones (and the old feed's order).
+    const SERVICES = { 'in-pass': 'in_pass_service', hotzone: 'hotzone_service', attendance: 'face_service', rate: 'rate_service' };
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const esc = window.acEscape;
+    const $ = (id) => document.getElementById(id);
+
+    let streams = [];
+    let networks = {};   // "ip|channel" -> network name
+    let current = null;
+
+    const key = (s) => `${s.ip}|${s.channel}`;
+    const netOf = (s) => networks[key(s)] || s.ip || 'Network';
+    const streamLabel = (s) => `${netOf(s)} - Camera ${s.channel ?? '-'}`;
+    const streamUrl = (s) => `${SVC}/${SERVICES[s.service_name]}/stream/cam_${String(s.ip).replace(/\./g, '_')}_${s.channel}`;
+
+    // One service's polygons; [] when it is not on this machine, null when it did not answer
+    // (within ZONES_TIMEOUT_MS, as the old monitor probe was capped). Either way the others stay on screen (B27).
+    const ZONES_TIMEOUT_MS = 3000;
+    async function zonesOf(name) {
+        const abort = new AbortController();
+        const timer = setTimeout(() => abort.abort(), ZONES_TIMEOUT_MS);
+        try {
+            const r = await fetch(`${SVC}/${SERVICES[name]}/polygons`, { signal: abort.signal });
+            if (r.status === 404 && r.headers.get('X-Svc-Missing')) return [];
+            if (!r.ok) throw new Error(`${SERVICES[name]}: HTTP ${r.status}`);
+            return (await r.json()).map(p => ({ ...p, service_name: name }));
+        } catch (err) {
+            console.error(err);
+            return null;
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    function failed(text) {
+        $('loading').classList.add('ac-hidden');
+        $('empty-title').textContent = 'Could not load streams';
+        $('empty-text').textContent = text;
+        $('empty').classList.remove('ac-hidden');
+    }
+
+    async function init() {
+        const names = Object.keys(SERVICES);
+        let lists;
+        try {
+            // Without the camera list the page cannot tell selected cameras from deselected ones.
+            const [zoneLists, channels] = await Promise.all([
+                Promise.all(names.map(zonesOf)),
+                fetch(`${API}/cameras/channels?status=1`).then(r => {
+                    if (!r.ok) throw new Error(`cameras: HTTP ${r.status}`);
+                    return r.json();
+                }),
+            ]);
+            lists = zoneLists;
+            // One stream per (service, camera) with zones, as the old monitor feed listed them.
+            const byKey = {};
+            lists.forEach(list => (list || []).forEach(p => {
+                const k = `${p.service_name}|${key(p)}`;
+                (byKey[k] ||= { ip: p.ip, channel: p.channel, service_name: p.service_name, polygons: [] }).polygons.push(p);
+            }));
+            // The services know ip/channel but not which network they belong to, nor which cameras are selected.
+            channels.forEach(c => { networks[`${c.ip}|${c.channel}`] = c.network_name || c.ip; });
+            streams = channels.flatMap(c => names.map(n => byKey[`${n}|${c.ip}|${c.channel}`]).filter(Boolean));
+        } catch (err) {
+            console.error(err);
+            return failed('The camera list could not be read. Please try again.');
+        }
+        $('loading').classList.add('ac-hidden');
+        if (!streams.length) {
+            if (lists.includes(null)) return failed('The detection services did not answer. Please try again.');
+            $('empty').classList.remove('ac-hidden');
+            return;
+        }
+        $('main').classList.remove('ac-hidden');
+        // Prefer a stream that actually has zones drawn on it.
+        select(streams.find(s => s.polygons && s.polygons.length) || streams[0]);
+    }
+
+    function bindPill(btnId, menuId, build) {
+        $(btnId).addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = $(menuId);
+            const open = menu.hidden;
+            document.querySelectorAll('.ac-menu').forEach(m => { m.hidden = true; });
+            if (!open) return;
+            menu.innerHTML = '';
+            build(menu);
+            menu.hidden = false;
+        });
+    }
+
+    function option(menu, label, selected, onPick) {
+        const b = document.createElement('button');
+        b.textContent = label;
+        if (selected) b.className = 'is-selected';
+        b.addEventListener('click', () => { menu.hidden = true; onPick(); });
+        menu.appendChild(b);
+    }
+
+    // One entry per camera ("Network - Camera N"); a camera feeding several
+    // services still appears once, and Service picks whose zones are drawn.
+    bindPill('cam-btn', 'cam-menu', (menu) => {
+        const seen = new Set();
+        streams.forEach(s => {
+            if (seen.has(key(s))) return;
+            seen.add(key(s));
+            option(menu, streamLabel(s), key(s) === key(current), () => {
+                const same = streams.filter(x => key(x) === key(s));
+                select(same.find(x => x.polygons && x.polygons.length) || same[0]);
+            });
+        });
+    });
+
+    bindPill('svc-btn', 'svc-menu', (menu) => {
+        streams.filter(s => key(s) === key(current)).forEach(s => {
+            option(menu, s.service_name || '-', s === current, () => select(s));
+        });
+    });
+
+    function select(stream) {
+        current = stream;
+        $('cam-val').textContent = streamLabel(stream);
+        $('svc-val').textContent = stream.service_name || '-';
+        // Only worth showing when the same camera feeds more than one service.
+        $('svc-wrap').classList.toggle('ac-hidden', streams.filter(s => key(s) === key(stream)).length < 2);
+        $('card-title').textContent = streamLabel(stream);
+        $('stream-error').classList.add('ac-hidden');
+        // A service that is closed or not running this camera answers 404: the img's error shows "Stream unavailable".
+        $('stream').src = `${streamUrl(stream)}?t=${Date.now()}`;
+        renderPolygons();
+        renderList();
+    }
+
+    $('stream').addEventListener('error', () => $('stream-error').classList.remove('ac-hidden'));
+    $('stream').addEventListener('load', () => $('stream-error').classList.add('ac-hidden'));
+
+    // Where each service's zones are edited — the list's "Edit" goes there.
+    const EDITOR = { 'in-pass': '/draw', hotzone: '/zone-draw', rate: '/rate', attendance: '/attendance' };
+    const ARROWS = { up: 'M12 19V5M5 12l7-7 7 7', down: 'M12 5v14M5 12l7 7 7-7', left: 'M19 12H5M12 5l-7 7 7 7', right: 'M5 12h14M12 5l7 7-7 7' };
+
+    // The zones of the selected service only — mixing every service's zones on
+    // one picture made it hard to tell which line belonged to what.
+    function cameraPolygons() {
+        if (!current) return [];
+        return (current.polygons || []).map((p, i) => ({ ...p, _service: current.service_name, _index: i }));
+    }
+
+    function zoneTag(p) {
+        switch (p._service) {
+            case 'in-pass': return p.type === 'in' ? 'Walk In' : 'Walk Pass';
+            case 'hotzone': return p.duration != null ? `${p.duration} second${Number(p.duration) === 1 ? '' : 's'}` : 'Zone';
+            case 'rate': return p.type === 'employee' ? 'Employee' : 'Interest';
+            case 'attendance': return 'Attendance';
+            default: return p._service || '';
+        }
+    }
+
+    function zoneLabel(p) {
+        switch (p._service) {
+            case 'in-pass': return (p.type === 'in' ? 'Walk In' : 'Walk Pass') + (p.direction ? ` (${p.direction})` : '');
+            case 'hotzone': return `${p.name || ''}${p.duration ? ` (${p.duration}s)` : ''}`.trim();
+            case 'rate': return p.type === 'employee' ? 'Employee' : 'Interest';
+            case 'attendance': return 'Attendance';
+            default: return '';
+        }
+    }
+
+    function renderPolygons() {
+        const svg = $('svg');
+        svg.innerHTML = '';
+        const polygons = cameraPolygons();
+        $('poly-count').textContent = `Total Polygon : ${polygons.length}`;
+
+        const r = $('canvas').getBoundingClientRect();
+        if (!r.width || !r.height) return;
+
+        polygons.forEach(p => {
+            if (!p.points || p.points.length < 2) return;
+            const pts = p.points.map(pt => [pt.x * r.width, pt.y * r.height]);
+            const g = document.createElementNS(SVG_NS, 'g');
+
+            const path = document.createElementNS(SVG_NS, 'path');
+            path.setAttribute('d', pts.map((pt, i) => `${i ? 'L' : 'M'}${pt[0]} ${pt[1]}`).join(' ') + ' Z');
+            path.setAttribute('fill', `${p.color}55`);
+            path.setAttribute('stroke', p.color);
+            path.setAttribute('stroke-width', 2.5);
+            path.setAttribute('stroke-linejoin', 'round');
+            g.appendChild(path);
+
+            pts.forEach(pt => {
+                const c = document.createElementNS(SVG_NS, 'circle');
+                c.setAttribute('cx', pt[0]); c.setAttribute('cy', pt[1]); c.setAttribute('r', 4);
+                c.setAttribute('fill', '#fff'); c.setAttribute('stroke', p.color); c.setAttribute('stroke-width', 2);
+                g.appendChild(c);
+            });
+
+            const label = zoneLabel(p);
+            if (label && pts.length >= 3) {
+                const cx = pts.reduce((s, pt) => s + pt[0], 0) / pts.length;
+                const cy = pts.reduce((s, pt) => s + pt[1], 0) / pts.length;
+                const t = document.createElementNS(SVG_NS, 'text');
+                t.setAttribute('x', cx); t.setAttribute('y', cy);
+                t.setAttribute('text-anchor', 'middle'); t.setAttribute('dominant-baseline', 'central');
+                t.setAttribute('fill', '#fff'); t.setAttribute('font-size', 13); t.setAttribute('font-weight', 600);
+                t.setAttribute('style', 'paint-order:stroke;stroke:rgba(0,0,0,.7);stroke-width:3px;');
+                t.textContent = label;
+                g.appendChild(t);
+            }
+            svg.appendChild(g);
+        });
+    }
+
+    function renderList() {
+        const polygons = cameraPolygons();
+        if (!polygons.length) {
+            $('list').innerHTML = '<p style="font-size:14px;color:#8a8a8a;">No polygons saved for this camera.</p>';
+            return;
+        }
+        $('list').innerHTML = polygons.map((p) => {
+            const name = p._service === 'hotzone' && p.name ? p.name : `Polygon ${p._index + 1}`;
+            const arrow = p._service === 'in-pass' && ARROWS[p.direction];
+            const edit = EDITOR[p._service];
+            return `
+                <div class="ze-item">
+                    <div style="flex:1;min-width:0;">
+                        <span class="ze-tag">${esc(zoneTag(p))}</span>
+                        <div class="ze-name">
+                            <span class="ze-swatch" style="background:${esc(p.color)};"></span>
+                            <span>${esc(name)}</span>
+                            ${arrow ? `<svg class="ze-arrow" viewBox="0 0 24 24"><path d="${arrow}"/></svg>` : ''}
+                        </div>
+                    </div>
+                    ${edit ? `<div class="ac-pill-wrap">
+                        <button class="ac-kebab" data-menu title="More"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+                        <div class="ac-menu right" hidden style="min-width:140px;">
+                            <a href="${edit}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:5px;color:#444;font-size:14px;"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Edit</a>
+                        </div>
+                    </div>` : ''}
+                </div>`;
+        }).join('');
+        $('list').querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const m = b.nextElementSibling, open = m.hidden;
+            document.querySelectorAll('.ac-menu').forEach(x => { x.hidden = true; });
+            m.hidden = !open;
+        }));
+    }
+
+    window.addEventListener('resize', renderPolygons);
+    new ResizeObserver(renderPolygons).observe($('canvas'));
+    init();
+})();
+</script>
+{% endblock %}

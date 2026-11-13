@@ -1,0 +1,166 @@
+<!-- templates/version_manager.html -->
+{% extends "base.html" %}
+
+{% block title %}จัดการเวอร์ชั่น - AI Camera{% endblock %}
+
+{% block content %}
+<style>
+.build-bar-indeterminate {
+    animation: build-bar-slide 1.2s ease-in-out infinite;
+}
+@keyframes build-bar-slide {
+    0%   { margin-left: 0%; }
+    50%  { margin-left: 60%; }
+    100% { margin-left: 0%; }
+}
+</style>
+<header class="main-header">
+    <div>
+        <h1>จัดการเวอร์ชั่น (Managed Services)</h1>
+        <p id="version-summary">กำลังโหลดข้อมูล...</p>
+    </div>
+    <div class="header-actions" style="display:flex; gap:10px; align-items:center;">
+        <select id="assign-all-version-select" class="form-control"
+            style="width:auto; min-width:180px; padding:8px; border-radius:6px; border:1px solid #d1d5db;">
+            <option value="">-- เลือกเวอร์ชั่น --</option>
+        </select>
+        <button id="assign-all-btn" class="btn btn-primary" disabled>Assign ให้ทุกสาขา</button>
+        <button id="force-all-btn" class="btn btn-secondary">อัพเดตทันทีทั้งหมด</button>
+        <button id="refresh-btn" class="btn btn-secondary">รีเฟรช</button>
+    </div>
+</header>
+
+<div class="card" style="margin-top: 16px;">
+    <div class="card-header-title" style="padding: 16px 20px 0;">
+        รายการสาขา
+    </div>
+    <div class="card-content" style="padding: 8px 20px 20px;">
+        <div id="loading-state" class="loading-state">กำลังโหลดข้อมูลสาขา...</div>
+        <div id="version-table-wrap" class="table-container" style="display:none;">
+            <table class="branch-table"
+                style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                    <tr style="text-align:left; color:#6b7280; border-bottom:1px solid #e5e7eb;">
+                        <th style="padding:10px 8px;">Activation Code</th>
+                        <th style="padding:10px 8px;">ชื่อสาขา</th>
+                        <th style="padding:10px 8px;">สถานะ</th>
+                        <th style="padding:10px 8px;">เวอร์ชั่นปัจจุบัน</th>
+                        <th style="padding:10px 8px;">เวอร์ชั่นที่กำหนด</th>
+                        <th style="padding:10px 8px;">เลือกเวอร์ชั่น</th>
+                        <th style="padding:10px 8px; text-align:center;">การจัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="branch-tbody"></tbody>
+            </table>
+        </div>
+        <div id="empty-state" class="loading-state" style="display:none;">ยังไม่มีสาขาในระบบ</div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 16px;">
+    <div class="card-header-title" style="padding: 16px 20px 0;">ดึงเวอร์ชันจาก Bitbucket</div>
+    <div class="card-content" style="padding: 8px 20px 20px;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+            <label style="font-size:13px; color:#6b7280;">Branch:</label>
+            <select id="bb-branch-select" class="form-control"
+                style="min-width:140px; padding:8px; border-radius:6px; border:1px solid #d1d5db;">
+                <option value="">-- เลือก branch --</option>
+            </select>
+            <button id="fetch-commits-btn" class="btn btn-primary">ดึง commits</button>
+            <select id="fetch-commits-limit" class="form-control"
+                style="width:auto; min-width:150px; padding:8px; border-radius:6px; border:1px solid #d1d5db;"
+                title="จำนวนคอมมิตล่าสุดที่จะเช็ค">
+                <option value="" selected>New Ver (ตัวใหม่ล่าสุด)</option>
+                <option value="5">5 ตัวย้อนหลัง</option>
+                <option value="10">10 ตัวย้อนหลัง</option>
+            </select>
+            <button id="store-versions-btn" class="btn btn-secondary" disabled>เก็บเวอร์ชันที่เลือก (0)</button>
+            <span id="bb-status" style="font-size:12px; color:#6b7280;"></span>
+        </div>
+        <div id="commits-table-wrap" class="table-container" style="display:none;">
+            <table class="branch-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                    <tr style="text-align:left; color:#6b7280; border-bottom:1px solid #e5e7eb;">
+                        <th style="padding:10px 8px; width:34px;"><input type="checkbox" id="commits-select-all" /></th>
+                        <th style="padding:10px 8px;">Commit</th>
+                        <th style="padding:10px 8px;">Message</th>
+                        <th style="padding:10px 8px;">Author</th>
+                        <th style="padding:10px 8px;">Date</th>
+                    </tr>
+                </thead>
+                <tbody id="commits-tbody"></tbody>
+            </table>
+        </div>
+        <div id="commits-empty" style="display:none; font-size:13px; color:#6b7280; padding:8px 0;">
+            กด "ดึง commits" เพื่อโหลดรายการ commit ล่าสุดจาก Bitbucket
+        </div>
+    </div>
+</div>
+
+<div class="card" id="active-builds-card" style="margin-top: 16px; display:none;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding: 16px 20px 0;">
+        <div class="card-header-title" style="color:#3b82f6;">กำลังคอมไพล์ (ทำงานเบื้องหลัง — ไปหน้าอื่นได้ตามปกติ)</div>
+        <button id="active-builds-cancel" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; font-size:12px; border-radius:6px; cursor:pointer; padding:5px 12px;">ยกเลิกทั้งหมด</button>
+    </div>
+    <div class="card-content" style="padding: 8px 20px 20px;">
+        <div id="active-builds-list"></div>
+    </div>
+</div>
+
+<div class="card" style="margin-top: 16px;">
+    <div class="card-header-title" style="padding: 16px 20px 0;">
+        เวอร์ชัน
+    </div>
+    <div class="card-content" style="padding: 8px 20px 20px;">
+        <div id="sv-loading" class="loading-state">กำลังโหลด...</div>
+        <div id="sv-table-wrap" class="table-container" style="display:none;">
+            <div style="position:relative; margin-bottom:10px;">
+                <svg style="position:absolute; left:12px; top:50%; transform:translateY(-50%); width:16px; height:16px; fill:none; stroke:#9ca3af; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input type="text" id="sv-search" placeholder="ค้นหา... (ชื่อเวอร์ชัน, commit, ผู้เก็บ, วันที่, message)"
+                       style="width:100%; padding:8px 12px 8px 36px; border-radius:8px; border:1px solid #d1d5db; font-size:13px; box-sizing:border-box; outline:none; transition:border-color .2s;"
+                       onfocus="this.style.borderColor='#3b82f6'" onblur="this.style.borderColor='#d1d5db'">
+            </div>
+            <table class="branch-table" style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                    <tr style="text-align:left; color:#6b7280; border-bottom:1px solid #e5e7eb;">
+                        <th style="padding:10px 8px; cursor:pointer;" onclick="setSort('id')">ชื่อเวอร์ชัน<span id="sort-id" class="sort-indicator"></span></th>
+                        <th style="padding:10px 8px;">Commit</th>
+                        <th style="padding:10px 8px; cursor:pointer;" onclick="setSort('author')">ผู้เก็บ<span id="sort-author" class="sort-indicator"></span></th>
+                        <th style="padding:10px 8px; cursor:pointer;" onclick="setSort('date')">วันที่<span id="sort-date" class="sort-indicator"></span></th>
+                        <th style="padding:10px 8px;">Message</th>
+                        <th style="padding:10px 8px; text-align:center;">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="sv-tbody"></tbody>
+            </table>
+        </div>
+        <div id="sv-empty" style="display:none; font-size:13px; color:#6b7280; padding:8px 0;">
+            ยังไม่มีเวอร์ชันที่เก็บไว้ — เก็บจาก "ดึงเวอร์ชันจาก Bitbucket" ด้านบนก่อน
+        </div>
+    </div>
+</div>
+
+<div id="store-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:150; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:10px; width:680px; max-width:92vw; max-height:82vh; overflow:auto; padding:20px;">
+        <h3 style="margin:0 0 4px;">เพิ่มเวอร์ชัน</h3>
+        <p style="margin:0 0 12px; color:#6b7280; font-size:12px;">
+            เลือกประเภทการแก้ของแต่ละ commit — ระบบรันเลขเวอร์ชันให้อัตโนมัติ
+            (<b>V.major.minor.bug</b>) ต่อจากเลขสูงสุดในระบบ เช่น มี V.1.7 →
+            bug=V.1.7.1 · minor=V.1.8 · major=V.2.0 (เรียงตามเวลาที่ commit)
+        </p>
+        <div id="store-items"></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:16px;">
+            <button id="store-cancel-btn" class="btn btn-secondary">ยกเลิก</button>
+            <button id="store-confirm-btn" class="btn btn-primary">ยืนยันเก็บเวอร์ชัน</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast-container" style="position:fixed; bottom:24px; right:24px; z-index:200; display:flex; flex-direction:column; gap:8px;"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/version_manager.js') }}?v=13"></script>
+{% endblock %}

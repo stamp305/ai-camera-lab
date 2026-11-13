@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Camera Admin - Frontend (:8002, branch Socket.IO)
+After=network.target ai-camera-admin-backend.service
+Wants=ai-camera-admin-backend.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/advice/python_server/ai-camera-admin/frontend
+ExecStart=/usr/bin/python3 app_ai_camera_frontend.py
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

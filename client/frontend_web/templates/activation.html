@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Activate - AI Camera{% endblock %}
+
+{% block body %}
+<!-- Loading State -->
+<div id="page-loading" class="auth-shell">
+    <div class="spinner spinner-lg"></div>
+</div>
+
+<!-- Activation Form -->
+<div id="activation-form-container" class="hidden" style="display:none;">
+    <div class="auth-shell">
+        <div class="auth-card">
+            <h1 class="auth-title">Activate</h1>
+            <p class="auth-hint">Send the details below to your administrator to get an activation code.</p>
+
+            <div class="auth-meta">
+                <div class="auth-meta-row">
+                    <span class="auth-meta-label">Serial Number</span>
+                    <span id="client-serial" class="auth-meta-value">Loading...</span>
+                </div>
+                <div class="auth-meta-row">
+                    <span class="auth-meta-label">MAC Address</span>
+                    <span id="client-mac" class="auth-meta-value">Loading...</span>
+                </div>
+            </div>
+
+            <form id="form-activation" novalidate>
+                <div class="auth-field">
+                    <label class="auth-label" for="activationKey">Activation code</label>
+                    <input class="auth-input" type="text" id="activationKey" name="activationKey" placeholder="Activation code" required minlength="6" autocapitalize="characters" autocorrect="off" spellcheck="false">
+                    <p class="auth-error" id="activation-error"></p>
+                </div>
+                <button type="submit" class="auth-submit" id="btn-activate">
+                    Activate
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+    const loading = document.getElementById('page-loading');
+    const formContainer = document.getElementById('activation-form-container');
+
+    // Auth logic for activation page
+    const rawData = sessionStorage.getItem('userData');
+    if (!rawData) {
+        window.location.href = appUrl('/login');
+        return;
+    }
+
+    // Where an activated user goes next. Straight to /landing only once the
+    // password has been changed: /landing would otherwise render its sidebar
+    // for an instant before its own guard (requireAuth) bounces it to /setup.
+    function nextPage(u) {
+        return appUrl(u.credentials_changed ? '/landing' : '/setup');
+    }
+
+    const userData = JSON.parse(rawData);
+    if (userData.is_activated) {
+        window.location.replace(nextPage(userData));
+        return;
+    }
+
+    // Show form
+    loading.classList.add('hidden');
+    formContainer.style.display = 'block';
+    formContainer.classList.remove('hidden');
+
+    // Fetch client info
+    fetch(`${getApiUrl()}/users/client-info`)
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById('client-mac').textContent = data.mac_address || 'Not available';
+            document.getElementById('client-serial').textContent = data.serial_number || 'Not available';
+        })
+        .catch(err => {
+            console.error('Failed to fetch client info', err);
+            document.getElementById('client-mac').textContent = 'Error';
+            document.getElementById('client-serial').textContent = 'Error';
+        });
+
+    // Form submission
+    const form = document.getElementById('form-activation');
+    const btnActivate = document.getElementById('btn-activate');
+    const inputKey = document.getElementById('activationKey');
+    const errorEl = document.getElementById('activation-error');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorEl.textContent = '';
+
+        const key = inputKey.value.trim();
+        if (key.length < 6) {
+            errorEl.textContent = 'Activation code must be at least 6 characters';
+            return;
+        }
+
+        // Disable UI
+        btnActivate.disabled = true;
+        inputKey.disabled = true;
+        btnActivate.innerHTML = '<div class="spinner spinner-sm spinner-light"></div> Activating...';
+
+        try {
+            const response = await fetch(`${getApiUrl()}/users/activate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    activation_code: key,
+                    user_id: userData.id
+                }),
+            });
+
+            if (!response.ok) {
+                // data_service answers {"detail": "<message for the operator>"}; show just that.
+                const raw = await response.text();
+                let message = raw;
+                try { message = (JSON.parse(raw) || {}).detail || raw; } catch (_) {}
+                ToastManager.error('Activation failed', message || response.statusText);
+                return;
+            }
+
+            // Update user data
+            userData.is_activated = true;
+            sessionStorage.setItem('userData', JSON.stringify(userData));
+
+            ToastManager.success('Activated', userData.credentials_changed
+                ? 'Taking you to the main page...'
+                : 'Next, set a new password.', 2000);
+            setTimeout(() => {
+                window.location.replace(nextPage(userData));
+            }, 2000);
+        } catch (error) {
+            console.error('Activation failed:', error);
+            ToastManager.error('Activation failed', 'That activation code was not accepted. Please check it and try again.');
+        } finally {
+            btnActivate.disabled = false;
+            inputKey.disabled = false;
+            btnActivate.innerHTML = 'Activate';
+        }
+    });
+})();
+</script>
+{% endblock %}

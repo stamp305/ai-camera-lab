@@ -1,0 +1,2 @@
+# RTSP defaults
+DEFAULT_RTSP_PORT = 554

@@ -1,0 +1,368 @@
+<!-- templates/users.html -->
+
+{% extends "base.html" %}
+
+{% block title %}User Management - AI Camera{% endblock %}
+
+{% block content %}
+<header class="main-header">
+    <div>
+        <h1>รายการผู้ใช้ทั้งหมด</h1>
+        <p id="group-count">กำลังโหลดข้อมูล...</p>
+    </div>
+    <!-- NEW: Search Bar Container -->
+    <div class="header-actions" style="display:none;"></div>
+</header>
+
+<!-- Filters Bar Moved Below Group Count -->
+<div id="filters-bar"
+    style="display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; margin:12px 0 8px; justify-content:space-between;">
+    <div class="filters-left" style="display:flex; flex-wrap:wrap; gap:10px; align-items:stretch;">
+        <!-- Group Filter -->
+        <div class="group-filter" style="position:relative;">
+            <button type="button" id="group-filter-toggle" class="btn btn-secondary"
+                style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>
+                    <path d="M9 10h6"></path>
+                    <path d="M9 14h6"></path>
+                </svg>
+                <span id="group-filter-summary" data-default="เลือกกลุ่ม">เลือกกลุ่ม</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div id="group-filter-menu" class="group-popover" aria-hidden="true"
+                style="position:absolute; top:110%; left:0; z-index:30; background:var(--bg-elevated,#fff); border:1px solid #e5e7eb; box-shadow:0 4px 14px rgba(0,0,0,.08); border-radius:10px; padding:8px 0 4px; width:260px; display:none;">
+                <div
+                    style="padding:4px 12px 8px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; font-weight:600;">
+                    เลือกกลุ่มผู้ใช้</div>
+                <div id="group-checkbox-list" style="max-height:320px; overflow:auto; padding:0 4px 4px;"></div>
+            </div>
+        </div>
+        <!-- Status Filter -->
+        <div class="status-filter" style="position:relative;">
+            <button type="button" id="status-filter-toggle" class="btn btn-secondary"
+                style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 6v6l3 3"></path>
+                </svg>
+                <span id="status-filter-summary" data-default="สถานะ">สถานะ</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div id="status-filter-menu" class="filter-popover" aria-hidden="true"
+                style="position:absolute; top:110%; left:0; z-index:30; background:#fff; border:1px solid #e5e7eb; box-shadow:0 4px 14px rgba(0,0,0,.08); border-radius:10px; padding:8px 0 4px; width:180px; display:none;">
+                <div
+                    style="padding:4px 12px 6px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; font-weight:600;">
+                    สถานะ</div>
+                <div id="status-checkbox-list" style="max-height:220px; overflow:auto; padding:0 4px 4px;"></div>
+            </div>
+        </div>
+        <!-- Version Filter -->
+        <div class="version-filter" style="position:relative;">
+            <button type="button" id="version-filter-toggle" class="btn btn-secondary"
+                style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 6h16"></path>
+                    <path d="M4 12h16"></path>
+                    <path d="M4 18h16"></path>
+                </svg>
+                <span id="version-filter-summary" data-default="เวอร์ชัน">เวอร์ชัน</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div id="version-filter-menu" class="filter-popover" aria-hidden="true"
+                style="position:absolute; top:110%; left:0; z-index:30; background:#fff; border:1px solid #e5e7eb; box-shadow:0 4px 14px rgba(0,0,0,.08); border-radius:10px; padding:8px 0 4px; width:200px; display:none;">
+                <div
+                    style="padding:4px 12px 6px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; font-weight:600;">
+                    เวอร์ชัน</div>
+                <div id="version-checkbox-list" style="max-height:240px; overflow:auto; padding:0 4px 4px;"></div>
+            </div>
+        </div>
+        <!-- Activated Filter -->
+        <div class="activated-filter" style="position:relative;">
+            <button type="button" id="activated-filter-toggle" class="btn btn-secondary"
+                style="display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                <svg width="16" height="16" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span id="activated-filter-summary" data-default="เปิดใช้งานแล้ว">เปิดใช้งานแล้ว</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" stroke="currentColor" fill="none" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </button>
+            <div id="activated-filter-menu" class="filter-popover" aria-hidden="true"
+                style="position:absolute; top:110%; left:0; z-index:30; background:#fff; border:1px solid #e5e7eb; box-shadow:0 4px 14px rgba(0,0,0,.08); border-radius:10px; padding:8px 0 4px; width:190px; display:none;">
+                <div
+                    style="padding:4px 12px 6px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; color:#6b7280; font-weight:600;">
+                    เปิดใช้งาน</div>
+                <div id="activated-checkbox-list" style="max-height:180px; overflow:auto; padding:0 4px 4px;"></div>
+            </div>
+        </div>
+    </div>
+    <div class="filters-right" style="display:flex; gap:10px; align-items:center; margin-left:auto;">
+        <div class="search-container" style="display:flex; align-items:center; position:relative;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="search-icon" style="position:absolute; left:8px; color:#6b7280;">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="search" id="search-input" placeholder="ค้นหา Activation / Serial"
+                style="padding:8px 10px 8px 34px; border:1px solid #e2e8f0; border-radius:8px; font-size:13px; min-width:240px;">
+        </div>
+        <button id="update-all-button" class="btn btn-primary" style="white-space:nowrap;">อัพเดตทั้งหมด</button>
+    </div>
+</div>
+
+<!-- Accordions will be dynamically inserted here -->
+<div id="accordion-container">
+    <!-- Loading Skeletons -->
+    <div id="loading-skeleton">
+        <div style="height: 57px; background-color: #f3f4f6; border-radius: 8px; margin-bottom: 24px;"
+            class="animate-pulse"></div>
+        <div style="height: 57px; background-color: #f3f4f6; border-radius: 8px; margin-bottom: 24px;"
+            class="animate-pulse"></div>
+    </div>
+</div>
+
+<!-- This action bar is hidden by default and appears when items are selected -->
+<div id="action-bar" class="action-bar">
+    <button id="update-selected-button" class="btn btn-primary" disabled>อัพเดต</button>
+    <span id="selection-counter">เลือก 0 รายการ</span>
+</div>
+
+<!-- Modal for Move Group -->
+<div id="move-group-modal" class="modal hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:100; display:none; align-items:center; justify-content:center;">
+    <div class="modal-content" style="background:#fff; border-radius:12px; padding:24px; width:400px; max-width:90%;">
+        <h3 style="margin-top:0; margin-bottom:16px;">ย้ายกลุ่มผู้ใช้</h3>
+        <p style="font-size:14px; color:#6b7280; margin-bottom:16px;">กำลังย้าย: <strong id="move-group-activation-code"></strong></p>
+        
+        <div class="form-group" style="margin-bottom:24px;">
+            <label style="margin-bottom:12px;">ต้องการย้ายไปที่...</label>
+            <div style="display:flex; gap:16px; margin-bottom: 12px;">
+                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; cursor:pointer;">
+                    <input type="radio" name="move-group-mode" value="existing" checked style="width:auto;"> เลือกกลุ่มที่มีอยู่
+                </label>
+                <label style="display:flex; align-items:center; gap:6px; font-weight:normal; cursor:pointer;">
+                    <input type="radio" name="move-group-mode" value="new" style="width:auto;"> สร้างกลุ่มใหม่
+                </label>
+            </div>
+            
+            <div id="move-group-select-container">
+                <select id="move-group-select" class="form-control" style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db;"></select>
+            </div>
+            
+            <div id="move-group-new-container" style="display:none;">
+                <input type="text" id="move-group-new" class="form-control" placeholder="พิมพ์ชื่อกลุ่มใหม่..." style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db;">
+            </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:12px;">
+            <button type="button" id="move-group-cancel" class="btn btn-secondary">ยกเลิก</button>
+            <button type="button" id="move-group-save" class="btn btn-primary">บันทึก</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Edit Branch -->
+<div id="edit-branch-modal" class="modal hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:100; display:none; align-items:center; justify-content:center;">
+    <div class="modal-content" style="background:#fff; border-radius:12px; padding:24px; width:400px; max-width:90%;">
+        <h3 style="margin-top:0; margin-bottom:16px;">แก้ไขชื่อสาขา</h3>
+        <p style="font-size:14px; color:#6b7280; margin-bottom:16px;">กำลังแก้ไข: <strong id="edit-branch-activation-code"></strong></p>
+        
+        <div class="form-group" style="margin-bottom:24px;">
+            <label for="edit-branch-input">ชื่อสาขา (Branch Name)</label>
+            <input type="text" id="edit-branch-input" class="form-control" placeholder="พิมพ์ชื่อสาขา..." style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db;">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:12px;">
+            <button type="button" id="edit-branch-cancel" class="btn btn-secondary">ยกเลิก</button>
+            <button type="button" id="edit-branch-save" class="btn btn-primary">บันทึก</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/script.js') }}?v=2"></script>
+<!-- Auto-expand all accordion groups -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const container = document.getElementById('accordion-container');
+        if (!container) return;
+        // Clean group selection elements
+        const toggleBtn = document.getElementById('group-filter-toggle');
+        const menu = document.getElementById('group-filter-menu');
+        const summaryLabel = document.getElementById('group-filter-summary');
+        const listContainer = document.getElementById('group-checkbox-list');
+        let tempSelection = new Set(); // working selection (mirrors applied immediately)
+        window.__groupFilterSelected = undefined; // undefined = no user interaction yet
+
+        const expandAll = () => {
+            container.querySelectorAll('details.accordion-item').forEach(d => {
+                if (!d.open) {
+                    d.open = true;
+                    // ensure inner table loads (script.js listens for toggle)
+                    d.dispatchEvent(new Event('toggle'));
+                }
+            });
+        };
+        const extractGroupName = (text) => text.replace(/\s*\(\d+\)\s*$/, '').trim();
+        const openMenu = () => { menu.style.display = 'block'; menu.setAttribute('aria-hidden', 'false'); rebuildList(); };
+        const closeMenu = () => { menu.style.display = 'none'; menu.setAttribute('aria-hidden', 'true'); };
+        const toggleMenu = () => menu.style.display === 'block' ? closeMenu() : openMenu();
+        if (toggleBtn) { toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); }); }
+        document.addEventListener('click', (e) => { if (menu && menu.style.display === 'block' && !menu.contains(e.target) && e.target !== toggleBtn) closeMenu(); });
+        const updateSummary = () => {
+            if (window.__groupFilterSelected === undefined || window.__groupFilterSelected.size === 0) {
+                summaryLabel.textContent = summaryLabel.dataset.default;
+                summaryLabel.classList.add('muted');
+            } else if (window.__groupFilterSelected.size === 1) {
+                summaryLabel.textContent = [...window.__groupFilterSelected][0];
+                summaryLabel.classList.remove('muted');
+            } else {
+                summaryLabel.textContent = `${window.__groupFilterSelected.size} กลุ่ม`;
+                summaryLabel.classList.remove('muted');
+            }
+        };
+        const applySelection = () => {
+            window.__groupFilterSelected = new Set(tempSelection);
+            if (window.__usersUpdateGroupFilter) window.__usersUpdateGroupFilter([...window.__groupFilterSelected]);
+            updateSummary();
+        };
+        const rebuildList = (namesSource) => {
+            const names = Array.isArray(namesSource) ? namesSource : (window.__allGroupNames || []);
+            listContainer.innerHTML = '';
+            if (!names.length) {
+                listContainer.innerHTML = '<div style="padding:12px; font-size:12px; color:#6b7280;">ไม่มีข้อมูล</div>';
+                return;
+            }
+            const currentApplied = window.__groupFilterSelected instanceof Set ? window.__groupFilterSelected : new Set();
+            if (tempSelection.size === 0 && currentApplied.size > 0) { tempSelection = new Set(currentApplied); }
+            names.sort((a, b) => a.localeCompare(b, 'th')).forEach(name => {
+                const id = 'chk_' + name.replace(/[^a-zA-Z0-9ก-๙]/g, '_');
+                const wrap = document.createElement('label');
+                wrap.style.display = 'flex';
+                wrap.style.alignItems = 'center';
+                wrap.style.gap = '8px';
+                wrap.style.padding = '6px 10px';
+                wrap.style.cursor = 'pointer';
+                wrap.style.fontSize = '13px';
+                wrap.onmouseenter = () => wrap.style.background = 'var(--hover-bg,#f1f5f9)';
+                wrap.onmouseleave = () => wrap.style.background = 'transparent';
+                wrap.innerHTML = `<input id="${id}" type="checkbox" value="${name}" ${(tempSelection.size ? tempSelection.has(name) : currentApplied.has(name)) ? 'checked' : ''} style="width:14px;height:14px;"> <span>${name}</span>`;
+                const cb = wrap.querySelector('input');
+                cb.addEventListener('change', (e) => {
+                    if (e.target.checked) tempSelection.add(name); else tempSelection.delete(name);
+                    applySelection(); // immediate apply
+                });
+                listContainer.appendChild(wrap);
+            });
+        };
+        // Build list when global event announces groups ready
+        window.addEventListener('users:groups-ready', (e) => { rebuildList(e.detail.groups); });
+
+        // ---------------- Additional Filters (Status, Version, Activated) ----------------
+        const simpleFilterFactory = ({ toggleId, menuId, listId, summaryId, valuesProvider, onUpdate, valueLabels }) => {
+            const tBtn = document.getElementById(toggleId);
+            const menuEl = document.getElementById(menuId);
+            const listEl = document.getElementById(listId);
+            const summaryEl = document.getElementById(summaryId);
+            let localSet = new Set();
+            const open = () => { menuEl.style.display = 'block'; menuEl.setAttribute('aria-hidden', 'false'); build(); };
+            const close = () => { menuEl.style.display = 'none'; menuEl.setAttribute('aria-hidden', 'true'); };
+            const toggle = () => menuEl.style.display === 'block' ? close() : open();
+            if (tBtn) tBtn.addEventListener('click', e => { e.stopPropagation(); toggle(); });
+            document.addEventListener('click', e => { if (menuEl && menuEl.style.display === 'block' && !menuEl.contains(e.target) && e.target !== tBtn) close(); });
+            const updateSummary = () => {
+                if (localSet.size === 0) { summaryEl.textContent = summaryEl.dataset.default; summaryEl.classList.add('muted'); }
+                else if (localSet.size === 1) { const only = [...localSet][0]; summaryEl.textContent = valueLabels[only] || only; summaryEl.classList.remove('muted'); }
+                else { summaryEl.textContent = `${localSet.size}`; summaryEl.classList.remove('muted'); }
+            };
+            const build = () => {
+                const values = valuesProvider();
+                listEl.innerHTML = '';
+                if (!values.length) { listEl.innerHTML = '<div style="padding:10px; font-size:12px; color:#6b7280;">ไม่มีข้อมูล</div>'; return; }
+                values.forEach(val => {
+                    const id = listId + '_' + val;
+                    const wrap = document.createElement('label');
+                    wrap.style.display = 'flex';
+                    wrap.style.alignItems = 'center';
+                    wrap.style.gap = '8px';
+                    wrap.style.padding = '6px 10px';
+                    wrap.style.cursor = 'pointer';
+                    wrap.style.fontSize = '13px';
+                    wrap.onmouseenter = () => wrap.style.background = 'var(--hover-bg,#f1f5f9)';
+                    wrap.onmouseleave = () => wrap.style.background = 'transparent';
+                    wrap.innerHTML = `<input id="${id}" type="checkbox" value="${val}" ${localSet.has(val) ? 'checked' : ''} style="width:14px;height:14px;"> <span>${valueLabels[val] || val}</span>`;
+                    const cb = wrap.querySelector('input');
+                    cb.addEventListener('change', e => { if (e.target.checked) localSet.add(val); else localSet.delete(val); onUpdate([...localSet]); updateSummary(); });
+                    listEl.appendChild(wrap);
+                });
+            };
+            updateSummary();
+            return { rebuild: build, updateSummary };
+        };
+
+        // Status filter (online/offline)
+        const statusFilter = simpleFilterFactory({
+            toggleId: 'status-filter-toggle', menuId: 'status-filter-menu', listId: 'status-checkbox-list', summaryId: 'status-filter-summary',
+            valuesProvider: () => ['online', 'offline'],
+            onUpdate: (vals) => window.__usersUpdateStatusFilter(vals),
+            valueLabels: { online: 'ออนไลน์', offline: 'ออฟไลน์' }
+        });
+        // Version filter (derive unique versions from allGroupsData via global variable window.__allGroupVersions built after fetch)
+        window.addEventListener('users:groups-ready', () => {
+            if (window.__allGroupVersions) { versionFilter.rebuild(); }
+        });
+        const versionFilter = simpleFilterFactory({
+            toggleId: 'version-filter-toggle', menuId: 'version-filter-menu', listId: 'version-checkbox-list', summaryId: 'version-filter-summary',
+            valuesProvider: () => (window.__allGroupVersions || []),
+            onUpdate: (vals) => window.__usersUpdateVersionFilter(vals),
+            valueLabels: {}
+        });
+        // Activated filter (yes/no)
+        const activatedFilter = simpleFilterFactory({
+            toggleId: 'activated-filter-toggle', menuId: 'activated-filter-menu', listId: 'activated-checkbox-list', summaryId: 'activated-filter-summary',
+            valuesProvider: () => ['yes', 'no'],
+            onUpdate: (vals) => window.__usersUpdateActivatedFilter(vals),
+            valueLabels: { yes: 'ใช่', no: 'ไม่ใช่' }
+        });
+
+        // Build version list after first data fetch (script.js sets __allGroupNames; we add versions here via event listener patch in script.js)
+        window.addEventListener('users:groups-ready', () => {
+            if (window.__allGroupVersions) { versionFilter.rebuild(); }
+        });
+        // When user first applies nothing, keep undefined so placeholder shows until first selection
+        updateSummary();
+        // Observe dynamic insertion of accordion items
+        const observer = new MutationObserver(mutations => {
+            let added = false;
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType === 1) { // ELEMENT_NODE
+                        if (node.matches && node.matches('details.accordion-item')) added = true;
+                        else if (node.querySelector && node.querySelector('details.accordion-item')) added = true;
+                    }
+                }
+            }
+            if (added) { expandAll(); updateSummary(); }
+        });
+        observer.observe(container, { childList: true, subtree: true });
+        // In case elements are already there
+        setTimeout(() => { expandAll(); updateSummary(); }, 0);
+    });
+</script>
+{% endblock %}

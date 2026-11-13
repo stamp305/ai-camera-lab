@@ -1,0 +1,73 @@
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Camera{% endblock %}
+
+{% block content %}
+<header class="main-header">
+    <div>
+        <h1>Dashboard</h1>
+        <p>ภาพรวมสถานะของระบบ</p>
+    </div>
+</header>
+
+<!-- KPI Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <h3 class="stat-card-title">ผู้ใช้ทั้งหมด</h3>
+            <div class="stat-card-icon users">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+            </div>
+        </div>
+        <p id="total-users" class="stat-card-value">-</p>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <h3 class="stat-card-title">ออนไลน์</h3>
+            <div class="stat-card-icon online">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                </svg>
+            </div>
+        </div>
+        <p id="online-users" class="stat-card-value">-</p>
+    </div>
+    <div class="stat-card">
+        <div class="stat-card-header">
+            <h3 class="stat-card-title">เปิดใช้งานแล้ว</h3>
+            <div class="stat-card-icon activated">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+            </div>
+        </div>
+        <p id="activated-users" class="stat-card-value">-</p>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="charts-grid">
+    <div class="card chart-container">
+        <h3 class="card-header-title">จำนวนผู้ใช้ในแต่ละกลุ่ม</h3>
+        <canvas id="group-chart"></canvas>
+    </div>
+    <div class="card chart-container">
+        <h3 class="card-header-title">การกระจายเวอร์ชัน</h3>
+        <canvas id="version-chart"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

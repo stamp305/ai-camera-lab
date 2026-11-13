@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Manage Packages - AI Camera{% endblock %}
+{% block content %}
+<header class="main-header">
+  <div>
+    <h1>จัดการแพ็คเกจ</h1>
+    <p>กำหนดโครงสร้างการให้บริการด้วยชุดแพ็คเกจ (Basic, Pro, Enterprise หรือ Custom)</p>
+  </div>
+</header>
+
+<div class="manage-grid">
+  <!-- Package List -->
+  <div class="card">
+    <div class="card-header-title"
+      style="padding:24px 24px 0; display:flex; justify-content:space-between; align-items:center;">
+      <span>รายการแพ็คเกจ</span>
+      <button type="button" id="refresh-packages" class="btn btn-secondary"
+        style="padding:4px 10px; font-size:12px;">รีเฟรช</button>
+    </div>
+    <div id="package-list" class="card-content" style="padding:8px 24px 24px;">
+      <p class="loading-state">กำลังโหลด...</p>
+    </div>
+  </div>
+
+  <!-- Create / Add Package -->
+  <div class="card">
+    <div class="card-header-title" style="padding:24px 24px 0;">สร้างแพ็คเกจใหม่</div>
+    <form id="add-package-form" autocomplete="off">
+      <div class="card-content" style="padding:8px 24px 16px;">
+        <div class="form-group">
+          <label for="package_name">ชื่อแพ็คเกจ</label>
+          <input type="text" id="package_name" placeholder="เช่น Basic หรือ Bronze" required />
+          <p style="margin:4px 0 0; font-size:12px; color:#64748b;">ตัวอักษรแรกจะถูกปรับเป็นตัวพิมพ์ใหญ่โดยอัตโนมัติ</p>
+        </div>
+      </div>
+      <div class="card-footer">
+        <button type="submit" class="btn btn-primary">สร้างแพ็คเกจ</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/manage_package.js') }}"></script>
+{% endblock %}

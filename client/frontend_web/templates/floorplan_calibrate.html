@@ -1,0 +1,2450 @@
+{% extends "layout_navbar.html" %}
+{% block shell_class %} ac-focus{% endblock %}
+{% block title %}Calibrate Floor Plan - AI Camera{% endblock %}
+{% block topbar %}
+<div class="ac-topbar" style="padding:0 64px;">
+  <a href="/floorplan" class="ac-back" id="back-link"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>back to Floor Plan</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<style>
+  .loupe { position:absolute; border-radius:50%; border:2px solid white; overflow:hidden; pointer-events:none; z-index:50; background:white; box-shadow:0 4px 12px rgba(0,0,0,0.15), 0 0 0 2px rgba(15,23,42,0.1); }
+  .point-marker { position:absolute; display:flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:white; font-weight:700; font-size:10px; line-height:1; cursor:grab; user-select:none; box-shadow:0 1px 3px rgba(0,0,0,0.2); border:2px solid; transform:translate(-50%,-50%); }
+  .point-marker:active { cursor:grabbing; }
+  .val-point { position:absolute; display:flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:white; font-weight:700; font-size:9px; line-height:1; user-select:none; box-shadow:0 1px 4px rgba(0,0,0,0.18); border:2px solid; transform:translate(-50%,-50%); pointer-events:none; z-index:15; }
+  .val-zone-dot { position:absolute; display:flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:white; font-weight:700; font-size:10px; line-height:1; transform:translate(-50%,-50%); pointer-events:none; z-index:14; box-shadow:0 1px 3px rgba(0,0,0,0.2); border:2px solid; }
+
+  /* Show/hide helpers the script toggles — defined here so the page does not
+     depend on the Tailwind CDN being reachable from the store. */
+  .cal .hidden { display:none !important; }
+  .cal .flex { display:flex; }
+
+  .cal-card { padding:24px; border:1px solid var(--ac-border); border-radius:10px; background:#fff; }
+  .cal-top { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .cal-stepper { display:flex; align-items:center; gap:24px; }
+  .cal-step { display:flex; align-items:center; gap:14px; border:0; background:none; padding:0; text-align:left; font:inherit; }
+  .cal-circle { width:44px; height:44px; flex:0 0 44px; display:grid; place-items:center; border-radius:50%; font-size:16px; font-weight:600; color:#fff; background:#bdbdbd; box-shadow:0 0 0 4px #ececec; }
+  .cal-circle.is-on { background:var(--ac-dark); }
+  .cal-circle svg { width:20px; height:20px; fill:none; stroke:#fff; stroke-width:2.6; stroke-linecap:round; stroke-linejoin:round; }
+  .cal-step small { display:block; font-size:14px; color:#8a8a8a; }
+  .cal-step strong { display:block; font-size:16px; font-weight:500; color:var(--ac-text); }
+  .cal-line { width:120px; height:2px; background:#e2e2e2; }
+  .cal-modes { display:flex; gap:12px; }
+  .cal-modes .ac-btn.is-active { background:#f2f2f2; border-color:#202020; }
+  .cal-checks { display:flex; gap:28px; margin:20px 0; font-size:14px; color:var(--ac-text); }
+  .cal-check { display:inline-flex; align-items:center; gap:8px; }
+  .cal-check svg { width:20px; height:20px; fill:#a3a3a3; stroke:#fff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .cal-check.is-ok svg { fill:#22c55e; }
+  .cal-pills { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:24px; }
+  .cal-pills.is-readonly .ac-pill { background:#f2f2f2; pointer-events:none; }
+  .cal-pills.is-readonly .ac-pill .val { color:var(--ac-text); }
+  .cal-pills.is-readonly .ac-caret, .cal-pills.is-readonly .cal-ip-icon { display:none; }
+  .cal-ip { display:inline-flex; align-items:center; gap:8px; cursor:pointer; font:inherit; color:inherit; }
+  .cal-ip:disabled { cursor:default; color:var(--ac-text-muted, #888); }
+  .cal-ip-icon { display:grid; place-items:center; width:16px; height:16px; color:#444; }
+  .cal-ip-icon svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .cal-ip.is-busy .cal-ip-icon svg { animation:cal-ip-spin .9s linear infinite; }
+  @keyframes cal-ip-spin { to { transform:rotate(360deg); } }
+  .cal-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  .cal-panel { padding:24px; border:1px solid var(--ac-border); border-radius:10px; min-width:0; }
+  .cal-panel-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  .cal-panel-head h3 { font-size:16px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-count { flex:0 0 auto; padding:4px 10px; border-radius:6px; background:#f2f2f2; font-size:14px; color:var(--ac-text); }
+  .cal-count.is-ok { background:#ebf9ef; color:#16a34a; }
+  .cal-canvas { position:relative; width:100%; aspect-ratio:16/10.5; overflow:hidden; border-radius:6px; background:#f5f5f5; touch-action:none; user-select:none; }
+  .cal-canvas.is-draw { cursor:crosshair; }
+  .cal-canvas > img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; pointer-events:none; user-select:none; }
+  .cal-overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:10; }
+  .cal-hint { padding:10px 16px; border-radius:6px; background:rgba(0,0,0,.55); color:#fff; font-size:15px; }
+  .cal-hint.is-error { background:rgba(200,30,30,.85); pointer-events:auto; }
+  .cal-busy { position:absolute; inset:0; z-index:30; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; background:rgba(255,255,255,.7); font-size:13px; color:#444; }
+  .cal-busy.is-dark { background:rgba(15,23,42,.55); color:#fff; }
+  .cal-tools { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:16px; flex-wrap:wrap; }
+  .cal-foot { display:flex; align-items:center; justify-content:flex-end; gap:12px; margin-top:28px; }
+  .cal-foot .cal-del { margin-right:auto; }
+  .cal-error { margin-bottom:16px; padding:12px 14px; border-radius:8px; background:#fdecec; color:#c81e1e; font-size:14px; }
+  .cal-quality { margin-bottom:16px; padding:12px 14px; border:1px solid var(--ac-border); border-radius:8px; background:#fff; font-size:14px; color:var(--ac-text); }
+  .cal-quality .q-row { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .cal-quality .q-title { font-weight:600; }
+  .cal-quality .q-badge { padding:2px 10px; border-radius:999px; font-size:13px; background:#f2f2f2; color:#555; }
+  .cal-quality .q-badge.is-tps { background:#ebf9ef; color:#16a34a; }
+  .cal-quality .q-warn { margin:8px 0 0; padding-left:18px; color:#b45309; font-size:13px; }
+  .cal-quality .q-sub { margin:10px 0 8px; font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#94a3b8; }
+  .q-chips { display:flex; flex-wrap:wrap; gap:6px; max-height:112px; overflow-y:auto; }
+  .pair-chip { display:inline-flex; align-items:center; gap:6px; padding:4px 6px 4px 10px; border-radius:6px; background:#f2f2f2; font-size:13px; font-weight:600; color:var(--ac-text); }
+  .pair-dot { width:8px; height:8px; border-radius:50%; flex:0 0 auto; }
+  .pair-x { display:grid; place-items:center; width:18px; height:18px; border:0; border-radius:50%; background:none; color:#8a8a8a; font-size:13px; line-height:1; cursor:pointer; }
+  .pair-x:hover { color:#dc2626; background:#fdecec; }
+  .cal-roi { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; padding:12px; border:1px solid var(--ac-border); border-radius:8px; flex-wrap:wrap; }
+  .cal-zone { display:inline-flex; align-items:center; gap:8px; height:34px; padding:0 12px; border:1px solid var(--ac-border); border-radius:999px; background:#fff; font-size:14px; color:#444; }
+  .cal-zone.is-active { border-color:currentColor; font-weight:500; }
+  .cal-zone .hz-tag { font-size:11px; padding:1px 6px; border-radius:999px; background:#f2f2f2; color:#666; }
+  .cal-zone .hz-tag.is-moved { background:#ebf9ef; color:#16a34a; }
+  .cal-zone .hz-tag.is-warn { background:#fff4e5; color:#b45309; }
+  .cal-roi-note { flex-basis:100%; margin:0; font-size:13px; color:#8a8a8a; }
+  .cal-roi-note.is-warn { color:#b45309; }
+  .hz-dot { position:absolute; display:flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:#fff; font-weight:700; font-size:10px; line-height:1; transform:translate(-50%,-50%); pointer-events:none; z-index:16; box-shadow:0 1px 3px rgba(0,0,0,.2); border:2px solid; }
+  .hz-dot.is-edit { pointer-events:auto; cursor:grab; z-index:17; }
+  .hz-dot.is-edit:active { cursor:grabbing; }
+  .hz-label { position:absolute; transform:translate(-50%,-50%); padding:1px 6px; border-radius:999px; background:#fff; font-size:10px; font-weight:700; white-space:nowrap; pointer-events:none; z-index:15; box-shadow:0 1px 4px rgba(0,0,0,.12); border:1.5px solid; }
+  #val-floor-container.is-hz-move, #val-cam-container.is-hz-move { cursor:move; }
+  #val-cam-container.is-hz-edit, #val-floor-container.is-hz-edit { cursor:crosshair; }
+  .hz-dot.is-off { border-color:#dc2626 !important; color:#dc2626 !important; background:#fee2e2; }
+  .hz-sub-row { flex-basis:100%; margin-bottom:4px; display:flex; gap:8px; flex-wrap:wrap; }
+  /* Square: hold and move up/down to turn the rectangle */
+  .hz-rot { position:absolute; width:24px; height:24px; margin:-12px 0 0 -12px; border-radius:50%; background:#fff; border:2px solid; display:flex; align-items:center; justify-content:center; cursor:grab; z-index:18; box-shadow:0 1px 4px rgba(0,0,0,.2); touch-action:none; }
+  .hz-rot svg { width:14px; height:14px; pointer-events:none; }
+  .hz-sub { display:inline-flex; width:auto; max-width:100%; border-color:var(--ac-border-strong); }
+  .hz-sub.hidden { display:none; }
+  .hz-sub button { color:var(--ac-text); font-weight:500; padding:0 16px; }
+  .hz-sub button.is-active { background:var(--ac-dark); color:#fff; }
+  /* Zoom: the canvas grows inside a scrolling frame, so every position stays measured
+     on the canvas itself (no transform for the point maths to undo). */
+  .cal-zoom-frame { position:relative; }
+  .cal-zoom { overflow:auto; aspect-ratio:16/10.5; border-radius:6px; background:#f5f5f5; overscroll-behavior:contain; }
+  .cal-zoom.is-dark { background:#1f2937; }
+  .cal-zoom > .cal-canvas { border-radius:0; flex:0 0 auto; }
+  .cal-zoom-ctl { position:absolute; top:8px; right:8px; z-index:40; display:flex; align-items:center; gap:2px; padding:3px; border-radius:8px; background:rgba(255,255,255,.92); box-shadow:0 1px 4px rgba(0,0,0,.18); }
+  .cal-zoom-ctl button { display:grid; place-items:center; min-width:28px; height:28px; padding:0 6px; border:0; border-radius:6px; background:none; font:inherit; font-size:12px; font-weight:600; color:#333; cursor:pointer; }
+  .cal-zoom-ctl button:hover:not(:disabled) { background:#f2f2f2; }
+  .cal-zoom-ctl button:disabled { color:#bbb; cursor:default; }
+  .cal-zoom-ctl button.is-on { background:#202020; color:#fff; }
+  .cal-zoom-ctl svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round; }
+  .cal-zoom-ctl .lvl { min-width:42px; font-weight:500; color:#555; }
+  .cal-zoom-frame.is-full { position:fixed; inset:0; z-index:1000; padding:16px; background:rgba(15,23,42,.88); }
+  .cal-zoom-frame.is-full .cal-zoom { width:100%; height:100%; aspect-ratio:auto; }
+  .cal-zoom-frame.is-full .cal-zoom > .cal-canvas { aspect-ratio:auto; }
+  .cal-zoom-frame.is-full .cal-zoom-ctl { top:24px; right:24px; }
+  body.cal-full-open { overflow:hidden; }
+  .cal-target { position:absolute; z-index:20; transform:translate(-50%,-50%); }
+  .cal-target-dot { width:16px; height:16px; border-radius:50%; border:3px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.2), 0 2px 6px rgba(0,0,0,.2); }
+  .cal-target-label { position:absolute; left:50%; top:100%; margin-top:8px; transform:translateX(-50%); white-space:nowrap; padding:3px 8px; border-radius:5px; background:#1f2937; color:#fff; font-size:12px; font-weight:600; }
+  @media (max-width: 1000px) { .cal-grid { grid-template-columns:1fr; } .cal-line { width:48px; } }
+</style>
+<div class="ac-page cal" style="max-width:1460px;">
+  <div class="ac-page-head">
+    <h1 class="ac-page-title">Calibrate Floor Plan</h1>
+    <p class="ac-page-sub">Mark the same spots on the floor plan and in the camera view so positions can be mapped between them</p>
+  </div>
+
+  <div id="loading-init" class="ac-empty"><div class="ac-spinner"></div></div>
+  <div id="error-init" class="ac-empty hidden">
+    <h3>Could not load this floor plan</h3>
+    <p id="error-init-text"></p>
+    <a href="/floorplan" class="ac-btn">Back to Floor Plan</a>
+  </div>
+
+  <div id="main-workspace" class="cal-card hidden">
+    <div class="cal-top">
+      <div class="cal-stepper">
+        <button id="btn-step1" class="cal-step" type="button">
+          <span id="step1-circle" class="cal-circle is-on">1</span>
+          <span><small>Step 1</small><strong id="step1-title">Set reference point</strong></span>
+        </button>
+        <span id="stepper-line" class="cal-line"></span>
+        <div id="step2-indicator" class="cal-step">
+          <span id="step2-circle" class="cal-circle">2</span>
+          <span><small>Step 2</small><strong id="step2-title">Validation</strong></span>
+        </div>
+      </div>
+      <div class="cal-modes">
+        <button id="mode-test" class="ac-btn ac-btn-lg" disabled title="Available in step 2"><svg viewBox="0 0 24 24"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg>Test Mapping</button>
+        <button id="mode-roi" class="ac-btn ac-btn-lg" disabled title="Available in step 2"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Draw ROI Zone</button>
+        <button id="mode-hz" class="ac-btn ac-btn-lg" disabled title="Available in step 2"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg>Calibrate Hot Zone</button>
+      </div>
+    </div>
+
+    <div class="cal-checks">
+      <span id="check-points" class="cal-check"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 2.6 2.6L16 9.6"/></svg><span>All reference points set : <span id="points-count">0/4</span></span></span>
+      <span id="check-match" class="cal-check" title="The floor plan and the camera need the same number of points"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m8 12.5 2.6 2.6L16 9.6"/></svg><span>Equal area</span></span>
+    </div>
+
+    <div id="cal-pills" class="cal-pills">
+      <div class="ac-pill-wrap" id="net-dropdown-wrap">
+        <button class="ac-pill" id="net-dropdown-btn">Network<span class="val" id="net-dropdown-text">-</span><svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></button>
+        <div class="ac-menu" id="net-dropdown" hidden></div>
+      </div>
+      <div class="ac-pill-wrap" id="cam-dropdown-wrap">
+        <button class="ac-pill" id="cam-dropdown-btn">Camera<span class="val" id="cam-dropdown-text">-</span><svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></button>
+        <div class="ac-menu" id="cam-dropdown" hidden></div>
+      </div>
+      <button class="ac-pill cal-ip" id="cam-refresh" type="button" disabled title="Take a new picture from this camera now">
+        <span class="cal-ip-icon"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg></span>
+        <span>Retake picture</span>
+      </button>
+    </div>
+
+    <!-- Step 1: place reference points -->
+    <div id="step1-workspace" class="cal-grid">
+      <div class="cal-panel">
+        <div class="cal-panel-head">
+          <h3 id="floorplan-name-badge">Floor Plan</h3>
+          <span id="floor-count" class="cal-count">Total Reference point: 0/4</span>
+        </div>
+        <div id="floor-container" class="cal-canvas is-draw">
+          <img id="floor-image" src="" alt="Floor plan" draggable="false">
+          <div id="floor-loading" class="cal-busy hidden"><div class="ac-spinner"></div>Loading points...</div>
+          <div id="floor-empty" class="cal-overlay"><span class="cal-hint">Click to start drawing reference point</span></div>
+          <svg id="floor-svg" class="absolute" style="position:absolute;pointer-events:none;z-index:10;display:none" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+          <div id="floor-loupe" class="loupe hidden" style="width:80px;height:80px;"></div>
+        </div>
+        <div class="cal-tools">
+            <div style="display:flex;gap:12px;">
+              <button class="ac-btn" id="floor-undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
+              <button class="ac-btn" id="floor-redo" disabled><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>Redo</button>
+              <button class="ac-btn ac-btn-danger-outline" id="floor-clear" disabled><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Clear</button>
+            </div>
+            <div class="ze-tools">
+              <div class="ac-pill-wrap ze-color">
+                Color:
+                <button id="floor-color" title="Point color"></button>
+                <div class="ac-menu right ac-color-menu" id="floor-color-menu" hidden style="top:auto;bottom:calc(100% + 6px);"></div>
+              </div>
+              <span class="ze-sep"></span>
+              <button class="ze-draw is-active" id="floor-lines" title="Show the outline joining the points"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Draw Line</button>
+            </div>
+          </div>
+      </div>
+      <div class="cal-panel">
+        <div class="cal-panel-head">
+          <h3 id="cam-panel-title">Camera</h3>
+          <span id="cam-count" class="cal-count">Total Reference point: 0/4</span>
+        </div>
+        <div id="cam-container" class="cal-canvas is-draw" style="background:#1f2937;">
+          <img id="cam-image" src="" alt="Camera snapshot" draggable="false" class="hidden">
+          <div id="cam-rtsp-loading" class="cal-busy is-dark hidden"><div class="ac-spinner"></div>Loading camera image...</div>
+          <div id="cam-loading" class="cal-busy hidden"><div class="ac-spinner"></div>Loading points...</div>
+          <div id="cam-empty" class="cal-overlay"><span class="cal-hint">Select a camera first</span></div>
+          <svg id="cam-svg" style="position:absolute;pointer-events:none;z-index:10;display:none" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+          <div id="cam-loupe" class="loupe hidden" style="width:80px;height:80px;"></div>
+        </div>
+        <div class="cal-tools">
+            <div style="display:flex;gap:12px;">
+              <button class="ac-btn" id="cam-undo" disabled><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
+              <button class="ac-btn" id="cam-redo" disabled><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>Redo</button>
+              <button class="ac-btn ac-btn-danger-outline" id="cam-clear" disabled><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Clear</button>
+            </div>
+            <div class="ze-tools">
+              <div class="ac-pill-wrap ze-color">
+                Color:
+                <button id="cam-color" title="Point color"></button>
+                <div class="ac-menu right ac-color-menu" id="cam-color-menu" hidden style="top:auto;bottom:calc(100% + 6px);"></div>
+              </div>
+              <span class="ze-sep"></span>
+              <button class="ze-draw is-active" id="cam-lines" title="Show the outline joining the points"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Draw Line</button>
+            </div>
+          </div>
+      </div>
+    </div>
+
+    <!-- live mapping quality while placing step-1 points (mirrors cctv-reid validation panel) -->
+    <div id="live-metrics" class="hidden" style="margin-top:20px;">
+      <div class="cal-quality" style="margin-bottom:0;">
+        <div id="live-quality"></div>
+        <div id="pair-chips" class="q-chips" style="margin-top:10px;"></div>
+      </div>
+    </div>
+    </div>
+
+    <!-- Step 2: validate the mapping, optionally draw ROI zones -->
+    <div id="step2-workspace" class="hidden" style="flex-direction:column;">
+      <div id="transform-error" class="cal-error hidden"></div>
+      <div id="roi-toolbar" class="cal-roi hidden">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:14px;color:#8a8a8a;margin-right:4px;">Zones</span>
+          <div id="zone-list" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="zone-undo" class="ac-btn"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
+          <button id="zone-add" class="ac-btn ac-btn-dark"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add Zone</button>
+        </div>
+      </div>
+      <!-- Calibrate Hot Zone: where each Zone Area zone sits on this floor plan -->
+      <div id="hz-toolbar" class="cal-roi hidden">
+        <div class="hz-sub-row">
+          <div class="ac-seg hz-sub hidden" id="hz-tool" title="The shape of the zone picked">
+            <button type="button" data-tool="polygon" class="is-active" title="Free corners: drag a corner or the zone, click to add a corner, double-click to remove one">Polygon</button>
+            <button type="button" data-tool="square" title="Make the zone a rectangle: drag a corner to resize, the zone to move, the turn handle to rotate">Square</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span style="font-size:14px;color:#8a8a8a;margin-right:4px;">Hot zones</span>
+          <div id="hz-list" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="hz-reset" class="ac-btn" title="Put this zone back where the calibration maps it from the camera"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Reset zone</button>
+          <button id="hz-undo" class="ac-btn"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
+        </div>
+        <p id="hz-note" class="cal-roi-note"></p>
+        <a id="hz-goto-za" class="ac-btn hidden" href="/zone-draw">Go to Zone Area</a>
+      </div>
+      <div class="cal-grid">
+        <div class="cal-panel">
+          <div class="cal-panel-head">
+            <h3 id="val-floor-title">Floor Plan</h3>
+            <span id="val-floor-count" class="cal-count">Total Reference point: 0/4</span>
+          </div>
+          <div id="val-floor-container" class="cal-canvas" style="cursor:pointer;">
+            <img id="val-floor-image" src="" alt="Floor plan" draggable="false">
+            <div id="val-floor-empty" class="cal-overlay hidden"><span class="cal-hint">Click the floor plan to test a position</span></div>
+            <svg id="val-floor-svg" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:10" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+            <div id="val-floor-target" class="cal-target hidden" style="left:50%;top:50%;">
+              <div class="cal-target-dot" style="background:#10b981;"></div>
+              <div id="val-floor-target-label" class="cal-target-label"></div>
+            </div>
+          </div>
+        </div>
+        <div class="cal-panel">
+          <div class="cal-panel-head">
+            <h3 id="val-cam-badge">Camera</h3>
+            <span id="val-cam-count" class="cal-count">Total Reference point: 0/4</span>
+          </div>
+          <div id="val-cam-container" class="cal-canvas" style="cursor:pointer;background:#1f2937;">
+            <img id="val-cam-image" src="" alt="Camera view" draggable="false">
+            <div id="val-rtsp-loading" class="cal-busy is-dark hidden"><div class="ac-spinner"></div>Loading camera image...</div>
+            <div id="val-cam-empty" class="cal-overlay hidden"><span class="cal-hint">Click the camera view to test a position</span></div>
+            <svg id="val-cam-svg" style="position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:10" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+            <div id="val-cam-target" class="cal-target hidden" style="left:50%;top:50%;">
+              <div class="cal-target-dot" style="background:#f59e0b;"></div>
+              <div id="val-cam-target-label" class="cal-target-label"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="step1-controls" class="cal-foot">
+      <button id="btn-delete-step1" class="ac-btn ac-btn-danger-outline cal-del hidden"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg><span id="btn-delete-step1-text">Delete</span></button>
+      <a href="/floorplan" class="ac-btn ac-btn-lg" id="btn-cancel">Cancel</a>
+      <button id="btn-go-step2" class="ac-btn ac-btn-dark ac-btn-lg" disabled style="min-width:120px;">Next</button>
+    </div>
+    <div id="step2-controls" class="cal-foot hidden">
+      <button id="btn-delete-step2" class="ac-btn ac-btn-danger-outline cal-del"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg><span id="btn-delete-step2-text">Delete calibration</span></button>
+      <button id="btn-back-step1" class="ac-btn ac-btn-lg" style="min-width:120px;">Back</button>
+      <button id="btn-save-config" class="ac-btn ac-btn-dark ac-btn-lg" style="min-width:120px;">Save</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="/static/js/shape_tools.js?v={{ range(1, 1000000) | random }}"></script>
+<script>
+(function(){
+  const API_BASE = getApiUrl();
+  const params = new URLSearchParams(window.location.search);
+  const floorplanIdParam = params.get('id');
+  const floorplanId = floorplanIdParam ? parseInt(floorplanIdParam,10) : 1;
+
+  // State
+  let floorplan = null;
+  let channels = [];
+  let dbCameras = [];
+  let floorPlanPoints = [];
+  let cameraPoints = [];
+  let selectedCamKey = null;
+  let calibrationId = null;
+  let currentStep = 1;
+  let lastStepShown = 1;
+  let hasUnsavedChanges = false;
+  let isLoadingPoints = false;
+  let fetchRequestId = 0;
+  let targetPoint = null; // {camX,camY,floorX,floorY}
+  let mode = 'test';
+  const ZONE_PALETTE = [
+    { fill: 'rgba(16, 185, 129, 0.2)', stroke: '#10b981', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+    { fill: 'rgba(245, 158, 11, 0.2)', stroke: '#f59e0b', bg: 'bg-amber-50', text: 'text-amber-700' },
+    { fill: 'rgba(139, 92, 246, 0.2)', stroke: '#8b5cf6', bg: 'bg-violet-50', text: 'text-violet-700' },
+    { fill: 'rgba(6, 182, 212, 0.2)', stroke: '#06b6d4', bg: 'bg-cyan-50', text: 'text-cyan-700' },
+    { fill: 'rgba(236, 72, 153, 0.2)', stroke: '#ec4899', bg: 'bg-pink-50', text: 'text-pink-700' },
+  ];
+  let zones = [{ id: 'zone-1', name: 'Zone 1', color: ZONE_PALETTE[0], points: [] }];
+  let activeZoneId = 'zone-1';
+  // Calibrate Hot Zone. Each Zone Area zone (Count Zone / Check Out) of this camera:
+  // {id, type, name, color, cam:[{x,y}%], mapped:[{x,y}%] (from the calibration, pulled
+  // inside the plan), off:n corners that fell outside, floor:[{x,y}%]|null (placed by hand)}.
+  let hzZones = [];
+  let hzActiveId = null;
+  let hzHistory = [];        // undo: snapshots of every zone's placement
+  let hzDirty = false;       // hand placements changed since load/save
+  let hzSavedRaw = [];       // hotzone_floor of the calibration as loaded
+  let hzState = 'idle';      // 'idle' | 'loading' | 'ready' | 'error'
+  let hzLoadSeq = 0;
+  let hzDrag = null;         // {zoneId, idx (corner) | -1 (whole zone), start:{x,y}, base, moved, snapshot}
+  let hzRedrawn = [];        // names of placed zones whose corners moved on Zone Area since
+  let hzAll = null;          // every Count Zone / Check Out on Zone Area (all cameras), last read
+  let hzOpenAfterLoad = null; // camera key to open on Calibrate Hot Zone once its calibration loads
+  let savedCal = null;       // {matrix, src, dst} as saved: what the admin draws zones with
+
+  // UI refs
+  const loadingInit = document.getElementById('loading-init');
+  const errorInit = document.getElementById('error-init');
+  const errorInitText = document.getElementById('error-init-text');
+  const mainWorkspace = document.getElementById('main-workspace');
+  const floorContainer = document.getElementById('floor-container');
+  const floorImage = document.getElementById('floor-image');
+  const floorSvg = document.getElementById('floor-svg');
+  const floorEmpty = document.getElementById('floor-empty');
+  const floorLoupe = document.getElementById('floor-loupe');
+  const camContainer = document.getElementById('cam-container');
+  const camImage = document.getElementById('cam-image');
+  const camSvg = document.getElementById('cam-svg');
+  const camEmpty = document.getElementById('cam-empty');
+  const camLoupe = document.getElementById('cam-loupe');
+  const camDropdownBtn = document.getElementById('cam-dropdown-btn');
+  const camDropdownText = document.getElementById('cam-dropdown-text');
+  const netDropdownBtn = document.getElementById('net-dropdown-btn');
+  const netDropdownText = document.getElementById('net-dropdown-text');
+  const netDropdown = document.getElementById('net-dropdown');
+  const camDropdown = document.getElementById('cam-dropdown');
+  const camDropdownWrap = document.getElementById('cam-dropdown-wrap');
+  const camRefresh = document.getElementById('cam-refresh');
+  const floorNameBadge = document.getElementById('floorplan-name-badge');
+  const camRtspLoading = document.getElementById('cam-rtsp-loading');
+  const valRtspLoading = document.getElementById('val-rtsp-loading');
+
+  // Step UI
+  const step1Circle = document.getElementById('step1-circle');
+  const step1Title = document.getElementById('step1-title');
+  const step2Indicator = document.getElementById('step2-indicator');
+  const step2Circle = document.getElementById('step2-circle');
+  const step2Title = document.getElementById('step2-title');
+  const stepperLine = document.getElementById('stepper-line');
+  const step1Controls = document.getElementById('step1-controls');
+  const step2Controls = document.getElementById('step2-controls');
+  const btnGoStep2 = document.getElementById('btn-go-step2');
+  const btnDeleteStep1 = document.getElementById('btn-delete-step1');
+  const btnDeleteStep2 = document.getElementById('btn-delete-step2');
+  const btnBackStep1 = document.getElementById('btn-back-step1');
+  const btnStep1 = document.getElementById('btn-step1');
+  const step1Workspace = document.getElementById('step1-workspace');
+  const step2Workspace = document.getElementById('step2-workspace');
+  const checkPoints = document.getElementById('check-points');
+  const checkMatch = document.getElementById('check-match');
+  const pointsCount = document.getElementById('points-count');
+  const calPills = document.getElementById('cal-pills');
+  const camPanelTitle = document.getElementById('cam-panel-title');
+  const valFloorTitle = document.getElementById('val-floor-title');
+  const valFloorCount = document.getElementById('val-floor-count');
+  const valCamCount = document.getElementById('val-cam-count');
+
+  // Point colours + outline toggle per panel (the mockup's "Color" and "Draw Line").
+  const COLORS = ['#4f6bed', '#f57c00', '#16a34a', '#dc2626', '#9333ea', '#0891b2', '#ca8a04', '#db2777'];
+  const loadPref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+  const savePref = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+  let floorColor = loadPref('cal-floor-color', COLORS[0]);
+  let camColor = loadPref('cal-cam-color', COLORS[0]);
+  let floorLines = true, camLines = true;
+  const fillOf = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  const countLabel = (n) => `Total Reference point: ${n}/4`;
+
+  // Counters
+  const floorCountEl = document.getElementById('floor-count');
+  const camCountEl = document.getElementById('cam-count');
+
+  // Validate refs
+  const valFloorContainer = document.getElementById('val-floor-container');
+  const valFloorImage = document.getElementById('val-floor-image');
+  const valFloorSvg = document.getElementById('val-floor-svg');
+  const valFloorTarget = document.getElementById('val-floor-target');
+  const valFloorTargetLabel = document.getElementById('val-floor-target-label');
+  const valCamContainer = document.getElementById('val-cam-container');
+  const valCamImage = document.getElementById('val-cam-image');
+  const valCamSvg = document.getElementById('val-cam-svg');
+  const valCamTarget = document.getElementById('val-cam-target');
+  const valCamTargetLabel = document.getElementById('val-cam-target-label');
+  const valCamBadge = document.getElementById('val-cam-badge');
+  const modeTestBtn = document.getElementById('mode-test');
+  const modeRoiBtn = document.getElementById('mode-roi');
+  const modeHzBtn = document.getElementById('mode-hz');
+  const roiToolbar = document.getElementById('roi-toolbar');
+  const hzToolbar = document.getElementById('hz-toolbar');
+  const transformErrorEl = document.getElementById('transform-error');
+  const zoneListEl = document.getElementById('zone-list');
+  const btnSaveConfig = document.getElementById('btn-save-config');
+
+  // Helpers
+  function getFullImageUrl(path){
+    if(!path) return "";
+    if(path.startsWith("http")||path.startsWith("blob:")) return path;
+        // รูปผังถูกเสิร์ฟโดย data_service ไม่ใช่ตัวเว็บ ถ้าคืน "/xxx" เฉย ๆ
+        // เบราว์เซอร์จะไปขอจาก origin ของหน้า (พอร์ต 3000) ซึ่งไม่มีไฟล์นั้น
+        // และถ้าดูผ่านรีโมตก็จะกลายเป็น origin ของแอดมินไปเลย ต้องผ่าน API_BASE
+    return `${API_BASE}/${path.replace(/^\//, "")}`;
+  }
+  function toTuples(pts){ return pts.map(p=>[p.x,p.y]); }
+  function normalizePoints(raw){
+    if(!raw||!Array.isArray(raw)) return [];
+    return raw.map(p=>{
+      if(Array.isArray(p)) return {x:Number(p[0])||0, y:Number(p[1])||0};
+      if(typeof p==='object'&&p!==null) return {x:Number(p.x)||0, y:Number(p.y)||0};
+      return {x:0,y:0};
+    });
+  }
+  function getPendingKey(fpId,ip,ch){ return `pendingCalibration:${fpId}:${ip}:${ch}`; }
+  function savePending(fpId,cam,camPts,floorPts){
+    try{ localStorage.setItem(getPendingKey(fpId,cam.ip,cam.channel), JSON.stringify({srcPoints:camPts,dstPoints:floorPts,savedAt:Date.now()})); }catch{}
+  }
+  function loadPending(fpId,cam){
+    try{
+      const raw=localStorage.getItem(getPendingKey(fpId,cam.ip,cam.channel));
+      if(!raw) return null;
+      const parsed=JSON.parse(raw);
+      if(!parsed?.srcPoints||!parsed.dstPoints) return null;
+      return {srcPoints:normalizePoints(parsed.srcPoints), dstPoints:normalizePoints(parsed.dstPoints)};
+    }catch{ return null;}
+  }
+  function clearPending(fpId,cam){ try{ localStorage.removeItem(getPendingKey(fpId,cam.ip,cam.channel)); }catch{} }
+  function getCalIp(c){ return c.cameraIp ?? c.camera_ip; }
+  function getCalChannel(c){ return c.cameraChannel ?? c.camera_channel; }
+  function getCalSrc(c){ return c.srcPoints ?? c.src_points; }
+  function getCalDst(c){ return c.dstPoints ?? c.dst_points; }
+  function isSameCal(c,cam){ return getCalIp(c)===cam.ip && String(getCalChannel(c))===String(cam.channel); }
+
+  function showCamRtspLoading(){
+    if(camRtspLoading) camRtspLoading.classList.remove('hidden');
+    if(camEmpty) camEmpty.classList.add('hidden');
+  }
+  function hideCamRtspLoading(){ if(camRtspLoading) camRtspLoading.classList.add('hidden'); }
+  function showValRtspLoading(){ if(valRtspLoading) valRtspLoading.classList.remove('hidden'); }
+  function hideValRtspLoading(){ if(valRtspLoading) valRtspLoading.classList.add('hidden'); }
+
+  async function fetchImageBlob(url, timeoutMs){
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(), timeoutMs);
+    try{
+      const res=await fetch(url, {cache:'no-store', signal: ctrl.signal});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob=await res.blob();
+      if(!blob.type.startsWith('image/')) throw new Error('not image');
+      return blob;
+    }finally{ clearTimeout(to); }
+  }
+
+  // The camera picture: the one kept since app start, the same as Camera
+  // Selection's (?cached=1), fetched once per camera and reused for step 2. Only
+  // the IP button takes a new one from the camera (live=true); so does the first
+  // visit to a camera that has no kept picture yet.
+  const _camPics=new Map();          // ip_channel -> object URL
+  let camPicError=false, camPicBusy=false;
+  function camPicKey(cam){ return `${cam.ip}_${cam.channel}`; }
+  const _camPicLoads=new Map();      // ip_channel -> promise of a picture on the way
+  function getCamPicture(cam, live){
+    const key=camPicKey(cam);
+    if(!live && _camPics.has(key)) return Promise.resolve(_camPics.get(key));
+    if(_camPicLoads.has(key)) return _camPicLoads.get(key);
+    const p=loadCamPicture(cam, live).finally(()=>_camPicLoads.delete(key));
+    _camPicLoads.set(key, p);
+    return p;
+  }
+  async function loadCamPicture(cam, live){
+    const key=camPicKey(cam);
+    const base=`${API_BASE}/cameras/image/${cam.ip}/${cam.channel}`;
+    let blob=null;
+    if(live){
+      // Retake picture: replaces the kept picture, the one Camera Selection shows too.
+      try{
+        const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 25000);
+        const res=await fetch(`${base}/retake`, {method:'POST', signal: ctrl.signal}).finally(()=>clearTimeout(to));
+        if(res.ok) blob=await fetchImageBlob(`${base}?cached=1&t=${Date.now()}`, 7000);
+      }catch(e){}
+      if(!blob) return null;
+    }
+    if(!blob){ try{ blob=await fetchImageBlob(`${base}?cached=1`, 7000); }catch(e){} }
+    if(!blob){ try{ blob=await fetchImageBlob(`${base}?t=${Date.now()}`, 25000); }catch(e){} }
+    if(!blob) return null;
+    const old=_camPics.get(key);
+    const url=URL.createObjectURL(blob);
+    _camPics.set(key, url);
+    if(old) setTimeout(()=>URL.revokeObjectURL(old), 1000);
+    return url;
+  }
+  function setImg(img, url){
+    return new Promise(res=>{ img.onload=()=>res(true); img.onerror=()=>res(false); img.src=url; if(img.complete && img.naturalWidth) res(true); });
+  }
+  async function showCamPicture(cam, live=false){
+    const key=camPicKey(cam);
+    const hadPicture=_camPics.has(key) && !camImage.classList.contains('hidden');
+    camPicError=false;
+    if(live){ camPicBusy=true; camRefresh.classList.add('is-busy'); camRefresh.disabled=true; }
+    if(!(live && hadPicture) && !_camPics.has(key)){
+      showCamRtspLoading(); camImage.classList.add('hidden'); camImgRect=null;
+    }
+    const url=await getCamPicture(cam, live);
+    if(live){ camPicBusy=false; camRefresh.classList.remove('is-busy'); }
+    if(selectedCamKey!==key) return;           // another camera was picked meanwhile
+    hideCamRtspLoading();
+    if(!url){
+      if(live && hadPicture) ToastManager.error('Could not get a new picture from this camera');
+      else { camPicError=true; camImage.classList.add('hidden'); camImgRect=null; }
+      renderCam(); return;
+    }
+    await setImg(camImage, url);
+    if(selectedCamKey!==key) return;
+    camImage.classList.remove('hidden');
+    camImgRect=computeCamRect();
+    renderCam();
+  }
+  async function showValCamPicture(cam){
+    showValRtspLoading();
+    valCamImage.classList.add('hidden');
+    const url=await getCamPicture(cam, false);
+    hideValRtspLoading();
+    if(!url) return;
+    await setImg(valCamImage, url);
+    valCamImage.classList.remove('hidden');
+    valCamImgRect=computeValCamRect();
+    renderValSvgs();
+  }
+
+  function getRenderedImageRect(container, naturalWidth, naturalHeight){
+    const containerRect = container.getBoundingClientRect();
+    const containerRatio = containerRect.width / containerRect.height;
+    const imageRatio = naturalWidth / naturalHeight;
+    let renderWidth, renderHeight, offsetX, offsetY;
+    if(imageRatio > containerRatio){
+      renderWidth = containerRect.width;
+      renderHeight = containerRect.width / imageRatio;
+      offsetX = 0; offsetY = (containerRect.height - renderHeight)/2;
+    } else {
+      renderHeight = containerRect.height;
+      renderWidth = containerRect.height * imageRatio;
+      offsetY = 0; offsetX = (containerRect.width - renderWidth)/2;
+    }
+    return {containerRect, offsetX, offsetY, renderWidth, renderHeight};
+  }
+  function clientToImagePercent(clientX, clientY, container, img){
+    if(!img.naturalWidth||!img.naturalHeight) return null;
+    const r = getRenderedImageRect(container, img.naturalWidth, img.naturalHeight);
+    const x = clientX - r.containerRect.left - r.offsetX;
+    const y = clientY - r.containerRect.top - r.offsetY;
+    if(x<0||x>r.renderWidth||y<0||y>r.renderHeight) return null;
+    return {x: Math.max(0,Math.min(100, (x/r.renderWidth)*100)), y: Math.max(0,Math.min(100,(y/r.renderHeight)*100))};
+  }
+
+  // State for floor/camera panels
+  let floorHistory=[], floorFuture=[], camHistory=[], camFuture=[];
+  let floorDraggingIdx=null, camDraggingIdx=null;
+  let floorPointerPos={x:0,y:0}, camPointerPos={x:0,y:0};
+  let floorImgRect=null, camImgRect=null, valFloorImgRect=null, valCamImgRect=null;
+  let floorImageLoaded=false, camImageLoaded=false;
+
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  // Update UI helpers
+  const CHECK_SVG = '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
+  function updateStepper(){
+    const floorCount=floorPlanPoints.length, camCount=cameraPoints.length;
+    const MIN=4;
+    const isMatch = floorCount===camCount && floorCount>0;
+    const isMinMet = floorCount>=MIN && camCount>=MIN;
+    const selected = getSelectedCamera();
+    const isValid = isMatch && isMinMet && selected!==null;
+
+    // checklist
+    pointsCount.textContent = `${Math.min(floorCount, camCount)}/${MIN}`;
+    checkPoints.classList.toggle('is-ok', isMinMet);
+    checkMatch.classList.toggle('is-ok', isMatch);
+
+    // stepper: step 1 shows a tick once the user is on step 2
+    if(currentStep===2){ step1Circle.innerHTML = CHECK_SVG; } else { step1Circle.textContent = '1'; }
+    step1Circle.classList.add('is-on');
+    step2Circle.classList.toggle('is-on', currentStep===2);
+
+    // step-2-only controls
+    modeTestBtn.disabled = currentStep!==2;
+    modeRoiBtn.disabled = currentStep!==2;
+    modeHzBtn.disabled = currentStep!==2;
+    modeTestBtn.classList.toggle('is-active', currentStep===2 && mode==='test');
+    modeRoiBtn.classList.toggle('is-active', currentStep===2 && mode==='roi');
+    modeHzBtn.classList.toggle('is-active', currentStep===2 && mode==='hz');
+    modeHzBtn.title = currentStep===2 ? 'Place each Zone Area zone where it really is on the floor plan' : 'Available in step 2';
+    hzToolbar.classList.toggle('hidden', !(currentStep===2 && mode==='hz'));
+    if(currentStep!==2) roiToolbar.classList.add('hidden');
+    modeTestBtn.title = currentStep===2 ? 'Click either image to see where that point lands on the other' : 'Available in step 2';
+    modeRoiBtn.title = currentStep===2 ? 'Draw regions of interest on the camera view' : 'Available in step 2';
+    // On Calibrate Hot Zone the camera can be changed here (cameras with hot zones say so).
+    calPills.classList.toggle('is-readonly', currentStep===2 && mode!=='hz');
+    { const selCam=getSelectedCamera(); if(selCam) camDropdownText.textContent=camLabel(selCam); }
+    camRefresh.classList.toggle('hidden', currentStep===2);
+
+    // footer
+    const hasPoints = calibrationId!==null || cameraPoints.length>0 || floorPlanPoints.length>0;
+    btnDeleteStep1.classList.toggle('hidden', !hasPoints);
+    document.getElementById('btn-delete-step1-text').textContent = calibrationId ? 'Delete calibration' : 'Clear points';
+    document.getElementById('btn-delete-step2-text').textContent = calibrationId ? 'Delete calibration' : 'Clear points';
+    btnGoStep2.disabled = !isValid;
+    btnGoStep2.title = isValid ? '' : (!selected ? 'Select a camera first' : !isMinMet ? 'Set at least 4 points on both images' : 'Both images need the same number of points');
+    step1Controls.classList.toggle('hidden', currentStep===2);
+    step2Controls.classList.toggle('hidden', currentStep!==2);
+    // live quality panel belongs to step 1 only
+    const liveMetricsBox=document.getElementById('live-metrics');
+    if(liveMetricsBox){
+      if(currentStep!==1){ liveMetricsBox.classList.add('hidden'); }
+      else { scheduleLiveMetrics(); }
+    }
+
+    if(lastStepShown!==currentStep){ lastStepShown=currentStep; closeFullScreen(); }
+    if(currentStep===1){
+      step1Workspace.classList.remove('hidden');
+      step2Workspace.classList.add('hidden'); step2Workspace.classList.remove('flex');
+    } else {
+      step1Workspace.classList.add('hidden');
+      step2Workspace.classList.remove('hidden'); step2Workspace.classList.add('flex');
+      valFloorCount.textContent = countLabel(floorCount);
+      valCamCount.textContent = countLabel(camCount);
+      valFloorCount.classList.toggle('is-ok', floorCount>=MIN);
+      valCamCount.classList.toggle('is-ok', camCount>=MIN);
+      const tryRenderVal = ()=>{
+        if(valFloorImage.complete && valFloorImage.naturalWidth>0) valFloorImgRect=computeValFloorRect();
+        if(valCamImage.complete && valCamImage.naturalWidth>0) valCamImgRect=computeValCamRect();
+        renderValSvgs();
+      };
+      valFloorImage.onload = tryRenderVal;
+      valCamImage.onload = tryRenderVal;
+      valFloorImage.onerror = tryRenderVal;
+      valCamImage.onerror = tryRenderVal;
+      tryRenderVal();
+      setTimeout(tryRenderVal, 80);
+      setTimeout(tryRenderVal, 300);
+      setTimeout(tryRenderVal, 600);
+    }
+  }
+
+  function getSelectedCamera(){
+    if(!selectedCamKey) return null;
+    return channels.find(c=> `${c.ip}_${c.channel}`===selectedCamKey) || null;
+  }
+
+  function renderFloor(){
+    floorCountEl.textContent = countLabel(floorPlanPoints.length);
+    floorCountEl.classList.toggle('is-ok', floorPlanPoints.length>=4);
+    document.getElementById('floor-undo').disabled = floorHistory.length===0;
+    document.getElementById('floor-redo').disabled = floorFuture.length===0;
+    document.getElementById('floor-clear').disabled = floorPlanPoints.length===0;
+    if(isLoadingPoints){
+      floorSvg.style.display='none'; floorSvg.innerHTML='';
+      floorContainer.querySelectorAll('.floor-marker').forEach(m=>m.remove());
+      floorEmpty.classList.add('hidden');
+      return;
+    }
+    if(floorPlanPoints.length===0){
+      floorEmpty.classList.remove('hidden');
+    } else {
+      floorEmpty.classList.add('hidden');
+    }
+    // svg
+    const rect = floorImgRect;
+    if(!rect || floorPlanPoints.length===0){
+      floorSvg.style.display='none';
+      floorSvg.innerHTML='';
+    } else {
+      floorSvg.style.display='block';
+      floorSvg.style.left = rect.offsetX+'px';
+      floorSvg.style.top = rect.offsetY+'px';
+      floorSvg.style.width = rect.renderWidth+'px';
+      floorSvg.style.height = rect.renderHeight+'px';
+      let svgContent='';
+      const pts = floorPlanPoints.map(p=> `${p.x},${p.y}`).join(' ');
+      if(!floorLines){
+        svgContent='';
+      } else if(floorPlanPoints.length<3){
+        svgContent = `<polyline points="${pts}" fill="none" stroke="${floorColor}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+      } else {
+        svgContent = `<polygon points="${pts}" fill="${fillOf(floorColor,0.2)}" stroke="${floorColor}" stroke-width="0.4" stroke-linejoin="round"/>`;
+      }
+      floorSvg.innerHTML = svgContent;
+    }
+    // markers
+    let markers = floorContainer.querySelectorAll('.floor-marker');
+    markers.forEach(m=>m.remove());
+    if(rect){
+      floorPlanPoints.forEach((p,idx)=>{
+        const x = rect.offsetX + (p.x/100)*rect.renderWidth;
+        const y = rect.offsetY + (p.y/100)*rect.renderHeight;
+        const m=document.createElement('div');
+        m.className='point-marker floor-marker';
+        m.style.left=x+'px'; m.style.top=y+'px';
+        m.style.borderColor=floorColor; m.style.color=floorColor;
+        m.style.zIndex = floorDraggingIdx===idx ? 30 : 20;
+        m.textContent=idx;
+        m.addEventListener('pointerdown', e=>{
+          e.stopPropagation();
+          // ตั้งตำแหน่งแว่นขยายก่อนวาด เพื่อไม่ให้ขึ้นผิดตำแหน่งตอนกด
+          let r=computeFloorRect();
+          if(r) floorPointerPos={x:e.clientX - r.containerRect.left, y:e.clientY - r.containerRect.top};
+          floorHistory.push([...floorPlanPoints]); floorFuture=[];
+          floorDraggingIdx=idx;
+          renderFloor();
+          updateStepper();
+        });
+        floorContainer.appendChild(m);
+      });
+    }
+    // loupe
+    if(floorDraggingIdx!==null){
+      floorLoupe.classList.remove('hidden');
+      updateFloorLoupe();
+    } else {
+      floorLoupe.classList.add('hidden');
+    }
+  }
+
+  function renderCam(){
+    camCountEl.textContent = countLabel(cameraPoints.length);
+    camCountEl.classList.toggle('is-ok', cameraPoints.length>=4);
+    document.getElementById('cam-undo').disabled = camHistory.length===0;
+    document.getElementById('cam-redo').disabled = camFuture.length===0;
+    document.getElementById('cam-clear').disabled = cameraPoints.length===0;
+    const selected = getSelectedCamera();
+    if(isLoadingPoints){
+      camEmpty.classList.add('hidden');
+      camSvg.style.display='none'; camSvg.innerHTML='';
+      camContainer.querySelectorAll('.cam-marker').forEach(m=>m.remove());
+      camLoupe.classList.add('hidden');
+      // dropdown ยังโชว์ชื่อเดิมแต่จุดซ่อนไว้จนโหลดเสร็จ
+      return;
+    }
+    if(!selected){
+      camEmpty.classList.remove('hidden');
+      camEmpty.innerHTML = '<span class="cal-hint">Select a camera first</span>';
+    } else if(camPicError){
+      camEmpty.classList.remove('hidden');
+      camEmpty.innerHTML = '<span class="cal-hint is-error">Could not load the camera image <button type="button" onclick="document.getElementById(\'cam-refresh\').click()" style="margin-left:8px;border:0;background:none;color:#fff;text-decoration:underline;font:inherit;">Try again</button></span>';
+    } else if(cameraPoints.length===0){
+      camEmpty.classList.remove('hidden');
+      camEmpty.innerHTML = '<span class="cal-hint">Click to start drawing reference point</span>';
+    } else {
+      camEmpty.classList.add('hidden');
+    }
+    const rect = camImgRect;
+    if(!rect || cameraPoints.length===0){
+      camSvg.style.display='none'; camSvg.innerHTML='';
+    } else {
+      camSvg.style.display='block';
+      camSvg.style.left = rect.offsetX+'px';
+      camSvg.style.top = rect.offsetY+'px';
+      camSvg.style.width = rect.renderWidth+'px';
+      camSvg.style.height = rect.renderHeight+'px';
+      let svgContent='';
+      const pts=cameraPoints.map(p=> `${p.x},${p.y}`).join(' ');
+      if(!camLines){
+        svgContent='';
+      } else if(cameraPoints.length<3){
+        svgContent=`<polyline points="${pts}" fill="none" stroke="${camColor}" stroke-width="0.4" stroke-linecap="round" stroke-linejoin="round"/>`;
+      } else {
+        svgContent=`<polygon points="${pts}" fill="${fillOf(camColor,0.2)}" stroke="${camColor}" stroke-width="0.4" stroke-linejoin="round"/>`;
+      }
+      camSvg.innerHTML=svgContent;
+    }
+    let markers = camContainer.querySelectorAll('.cam-marker');
+    markers.forEach(m=>m.remove());
+    if(rect){
+      cameraPoints.forEach((p,idx)=>{
+        const x= rect.offsetX + (p.x/100)*rect.renderWidth;
+        const y= rect.offsetY + (p.y/100)*rect.renderHeight;
+        const m=document.createElement('div');
+        m.className='point-marker cam-marker';
+        m.style.left=x+'px'; m.style.top=y+'px';
+        m.style.borderColor=camColor; m.style.color=camColor;
+        m.style.zIndex = camDraggingIdx===idx ? 30 : 20;
+        m.textContent=idx;
+        m.addEventListener('pointerdown', e=>{
+          e.stopPropagation();
+          let r=computeCamRect();
+          if(r) camPointerPos={x:e.clientX - r.containerRect.left, y:e.clientY - r.containerRect.top};
+          camHistory.push([...cameraPoints]); camFuture=[];
+          camDraggingIdx=idx;
+          renderCam();
+        });
+        camContainer.appendChild(m);
+      });
+    }
+    if(camDraggingIdx!==null){
+      camLoupe.classList.remove('hidden');
+      updateCamLoupe();
+    } else {
+      camLoupe.classList.add('hidden');
+    }
+    // dropdown text
+    if(selected){
+      netDropdownText.textContent = selected.name || selected.ip;
+      camDropdownText.textContent = camLabel(selected);
+      camRefresh.disabled = camPicBusy;
+      camPanelTitle.textContent = `${selected.name || selected.ip} - Camera ${selected.channel}`;
+      camImage.classList.remove('hidden');
+    } else {
+      netDropdownText.textContent='-';
+      camDropdownText.textContent='-';
+      camRefresh.disabled = true;
+      camPanelTitle.textContent='Camera';
+      camImage.classList.add('hidden');
+      camSvg.style.display='none';
+    }
+  }
+
+  function updateFloorLoupe(){
+    if(floorDraggingIdx===null) return;
+    const containerRect = floorContainer.getBoundingClientRect();
+    const x = floorPointerPos.x, y = floorPointerPos.y;
+    const loupe = floorLoupe;
+    loupe.style.left = x+'px';
+    loupe.style.top = (y<80 ? y+60 : y-60)+'px';
+    loupe.style.transform='translate(-50%,-50%)';
+    // inner image zoom
+    loupe.innerHTML='';
+    const img=document.createElement('img');
+    img.src = floorImage.src;
+    img.style.position='absolute';
+    img.style.width = floorContainer.clientWidth*2+'px';
+    img.style.height = floorContainer.clientHeight*2+'px';
+    img.style.left = -(x*2)+40+'px';
+    img.style.top = -(y*2)+40+'px';
+    img.style.maxWidth='none';
+    img.style.pointerEvents='none';
+    img.style.objectFit='contain';
+    loupe.appendChild(img);
+    const cx=document.createElement('div'); cx.style.position='absolute'; cx.style.inset='0'; cx.style.margin='auto'; cx.style.width='12px'; cx.style.height='1.5px'; cx.style.background=floorColor; cx.style.borderRadius='9999px'; loupe.appendChild(cx);
+    const cy=document.createElement('div'); cy.style.position='absolute'; cy.style.inset='0'; cy.style.margin='auto'; cy.style.height='12px'; cy.style.width='1.5px'; cy.style.background=floorColor; cy.style.borderRadius='9999px'; loupe.appendChild(cy);
+  }
+  function updateCamLoupe(){
+    if(camDraggingIdx===null) return;
+    const x=camPointerPos.x, y=camPointerPos.y;
+    const loupe=camLoupe;
+    loupe.style.left=x+'px';
+    loupe.style.top=(y<80 ? y+60 : y-60)+'px';
+    loupe.style.transform='translate(-50%,-50%)';
+    loupe.innerHTML='';
+    const img=document.createElement('img');
+    img.src=camImage.src;
+    img.style.position='absolute';
+    img.style.width=camContainer.clientWidth*2+'px';
+    img.style.height=camContainer.clientHeight*2+'px';
+    img.style.left=-(x*2)+40+'px';
+    img.style.top=-(y*2)+40+'px';
+    img.style.maxWidth='none';
+    img.style.pointerEvents='none';
+    img.style.objectFit='contain';
+    loupe.appendChild(img);
+    const cx=document.createElement('div'); cx.style.position='absolute'; cx.style.inset='0'; cx.style.margin='auto'; cx.style.width='12px'; cx.style.height='1.5px'; cx.style.background=camColor; loupe.appendChild(cx);
+    const cy=document.createElement('div'); cy.style.position='absolute'; cy.style.inset='0'; cy.style.margin='auto'; cy.style.height='12px'; cy.style.width='1.5px'; cy.style.background=camColor; loupe.appendChild(cy);
+  }
+
+  function computeFloorRect(){
+    if(!floorContainer||!floorImage||!floorImage.naturalWidth) return null;
+    return getRenderedImageRect(floorContainer, floorImage.naturalWidth, floorImage.naturalHeight);
+  }
+  function computeCamRect(){
+    if(!camContainer||!camImage||!camImage.naturalWidth) return null;
+    return getRenderedImageRect(camContainer, camImage.naturalWidth, camImage.naturalHeight);
+  }
+  function computeValFloorRect(){
+    if(!valFloorContainer||!valFloorImage||!valFloorImage.naturalWidth) return null;
+    return getRenderedImageRect(valFloorContainer, valFloorImage.naturalWidth, valFloorImage.naturalHeight);
+  }
+  function computeValCamRect(){
+    if(!valCamContainer||!valCamImage||!valCamImage.naturalWidth) return null;
+    return getRenderedImageRect(valCamContainer, valCamImage.naturalWidth, valCamImage.naturalHeight);
+  }
+
+  function updateFloor(){
+    renderFloor();
+    updateStepper();
+    if(!isLoadingPoints && (floorPlanPoints.length>0||cameraPoints.length>0)){
+      if(!hasUnsavedChanges) hasUnsavedChanges=true;
+    }
+    scheduleLiveMetrics();
+  }
+  function updateCam(){
+    renderCam();
+    updateStepper();
+    if(!isLoadingPoints && (floorPlanPoints.length>0||cameraPoints.length>0)){
+      if(!hasUnsavedChanges) hasUnsavedChanges=true;
+    }
+    scheduleLiveMetrics();
+  }
+
+  function renderValSvgs(){
+    valFloorImgRect = computeValFloorRect();
+    valCamImgRect = computeValCamRect();
+    valFloorContainer.querySelectorAll('.val-point,.val-zone-dot,.val-zone-label').forEach(el=>el.remove());
+    valCamContainer.querySelectorAll('.val-point,.val-zone-dot,.val-zone-label').forEach(el=>el.remove());
+    if(valFloorImgRect){
+      const W = valFloorImgRect.renderWidth, H = valFloorImgRect.renderHeight;
+      valFloorSvg.style.left = valFloorImgRect.offsetX+'px';
+      valFloorSvg.style.top = valFloorImgRect.offsetY+'px';
+      valFloorSvg.style.width = W+'px';
+      valFloorSvg.style.height = H+'px';
+      valFloorSvg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+      valFloorSvg.setAttribute('preserveAspectRatio','xMidYMid meet');
+      // Step 2 shows the reference points only, without the dashed outline joining them.
+      valFloorSvg.innerHTML = '';
+    } else {
+      if(valFloorSvg) valFloorSvg.innerHTML='';
+    }
+    if(valCamImgRect){
+      const W2 = valCamImgRect.renderWidth, H2 = valCamImgRect.renderHeight;
+      valCamSvg.style.left = valCamImgRect.offsetX+'px';
+      valCamSvg.style.top = valCamImgRect.offsetY+'px';
+      valCamSvg.style.width = W2+'px';
+      valCamSvg.style.height = H2+'px';
+      valCamSvg.setAttribute('viewBox',`0 0 ${W2} ${H2}`);
+      valCamSvg.setAttribute('preserveAspectRatio','xMidYMid meet');
+      let svg = '';
+      zones.forEach(z=>{
+        if(z.points.length===0 || mode==='hz') return;
+        const ptsPx=z.points.map(p=> `${(p.x/100)*W2},${(p.y/100)*H2}`).join(' ');
+        const isActive=z.id===activeZoneId;
+        const sw = isActive ? 2.2 : 1.8;
+        const dash = isActive && mode==='roi' ? 'stroke-dasharray="8 6"' : '';
+        svg += `<polygon points="${ptsPx}" fill="${z.color.fill}" stroke="${z.color.stroke}" stroke-width="${sw}" ${dash} stroke-linejoin="round" stroke-linecap="round"/>`;
+      });
+      valCamSvg.innerHTML = svg;
+
+      zones.forEach(z=>{
+        if(z.points.length===0 || mode==='hz') return;
+        z.points.forEach((pt, idx)=>{
+          const x = valCamImgRect.offsetX + (pt.x/100)*valCamImgRect.renderWidth;
+          const y = valCamImgRect.offsetY + (pt.y/100)*valCamImgRect.renderHeight;
+          const dot=document.createElement('div');
+          dot.className='val-zone-dot';
+          dot.style.left=x+'px'; dot.style.top=y+'px';
+          dot.style.borderColor=z.color.stroke;
+          dot.style.color=z.color.stroke;
+          dot.style.background='white';
+          dot.textContent = idx;
+          valCamContainer.appendChild(dot);
+        });
+        if(z.points.length>=3){
+          let cx=0, cy=0; z.points.forEach(p=>{cx+=p.x; cy+=p.y;}); cx/=z.points.length; cy/=z.points.length;
+          const x = valCamImgRect.offsetX + (cx/100)*valCamImgRect.renderWidth;
+          const y = valCamImgRect.offsetY + (cy/100)*valCamImgRect.renderHeight;
+          const label=document.createElement('div');
+          label.className='val-zone-label';
+          label.style.position='absolute'; label.style.left=x+'px'; label.style.top=y+'px';
+          label.style.transform='translate(-50%,-50%)'; label.style.background='white';
+          label.style.border=`1.5px solid ${z.color.stroke}`; label.style.color=z.color.stroke;
+          label.style.fontSize='10px'; label.style.fontWeight='700'; label.style.padding='1px 6px';
+          label.style.borderRadius='9999px'; label.style.boxShadow='0 1px 4px rgba(0,0,0,0.12)';
+          label.style.pointerEvents='none'; label.style.zIndex='13';
+          label.textContent=z.name;
+          valCamContainer.appendChild(label);
+        }
+      });
+    } else {
+      if(valCamSvg) valCamSvg.innerHTML='';
+    }
+    if(targetPoint && valFloorImgRect && valCamImgRect){
+      const ft = targetPoint;
+      valFloorTarget.style.left = (valFloorImgRect.offsetX + (ft.floorX/100)*valFloorImgRect.renderWidth)+'px';
+      valFloorTarget.style.top = (valFloorImgRect.offsetY + (ft.floorY/100)*valFloorImgRect.renderHeight)+'px';
+      valFloorTarget.style.transform='translate(-50%,-50%)';
+      valFloorTarget.classList.remove('hidden');
+      valFloorTargetLabel.textContent = `X: ${ft.floorX.toFixed(1)}% | Y: ${ft.floorY.toFixed(1)}%`;
+      valCamTarget.style.left = (valCamImgRect.offsetX + (ft.camX/100)*valCamImgRect.renderWidth)+'px';
+      valCamTarget.style.top = (valCamImgRect.offsetY + (ft.camY/100)*valCamImgRect.renderHeight)+'px';
+      valCamTarget.style.transform='translate(-50%,-50%)';
+      valCamTarget.classList.remove('hidden');
+      valCamTargetLabel.textContent = `X: ${ft.camX.toFixed(1)}% | Y: ${ft.camY.toFixed(1)}%`;
+    } else {
+      valFloorTarget.classList.add('hidden');
+      valCamTarget.classList.add('hidden');
+    }
+    const sel=getSelectedCamera();
+    valCamBadge.textContent = sel ? `${sel.name || sel.ip} - Camera ${sel.channel}` : 'Camera';
+    renderHotzones();
+  }
+
+  function renderZoneList(){
+    zoneListEl.innerHTML='';
+    zones.forEach(z=>{
+      const isActive = z.id===activeZoneId;
+      const btn=document.createElement('button');
+      btn.className = 'cal-zone' + (isActive ? ' is-active' : '');
+      if(isActive){ btn.style.color=z.color.stroke; btn.style.background=z.color.fill; }
+      btn.innerHTML = `<span style="width:10px;height:10px;border-radius:50%;background:${z.color.stroke}"></span>${escapeHtml(z.name)} <span style="opacity:.6;font-size:12px;">(${z.points.length})</span>`;
+      if(isActive){
+        const x=document.createElement('span');
+        x.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+        x.title='Delete zone'; x.style.display='inline-flex';
+        x.addEventListener('click', e=>{ e.stopPropagation(); deleteZone(z.id); });
+        btn.appendChild(x);
+      }
+      btn.addEventListener('click', ()=>{ activeZoneId=z.id; renderZoneList(); renderValSvgs(); });
+      zoneListEl.appendChild(btn);
+    });
+  }
+
+  function deleteZone(zoneId){
+    if(zones.length===1){
+      zones=[{ id:'zone-1', name:'Zone 1', color:ZONE_PALETTE[0], points:[]}];
+      activeZoneId='zone-1';
+    } else {
+      zones=zones.filter(z=>z.id!==zoneId);
+      if(activeZoneId===zoneId) activeZoneId=zones[0].id;
+    }
+    renderZoneList(); renderValSvgs();
+  }
+
+  // Event Listeners Floor
+  floorContainer.addEventListener('pointerdown', e=>{
+    if(floorDraggingIdx!==null) return;
+    const rect = computeFloorRect();
+    if(!rect) return;
+    floorImgRect=rect;
+    const x=e.clientX - rect.containerRect.left - rect.offsetX;
+    const y=e.clientY - rect.containerRect.top - rect.offsetY;
+    if(x<0||x>rect.renderWidth||y<0||y>rect.renderHeight) return;
+    const px=Math.max(0,Math.min(100,(x/rect.renderWidth)*100));
+    const py=Math.max(0,Math.min(100,(y/rect.renderHeight)*100));
+    floorHistory.push([...floorPlanPoints]);
+    floorFuture=[];
+    floorPlanPoints.push({x:px,y:py});
+    updateFloor();
+  });
+  floorContainer.addEventListener('pointermove', e=>{
+    if(floorDraggingIdx===null) return;
+    const rect = computeFloorRect();
+    if(!rect) return;
+    floorImgRect=rect;
+    const x=e.clientX - rect.containerRect.left - rect.offsetX;
+    const y=e.clientY - rect.containerRect.top - rect.offsetY;
+    const px=Math.max(0,Math.min(100,(x/rect.renderWidth)*100));
+    const py=Math.max(0,Math.min(100,(y/rect.renderHeight)*100));
+    floorPointerPos={x:e.clientX - rect.containerRect.left, y:e.clientY - rect.containerRect.top};
+    floorPlanPoints[floorDraggingIdx]={x:px,y:py};
+    renderFloor();
+  });
+  floorContainer.addEventListener('pointerup', ()=>{ floorDraggingIdx=null; floorLoupe.classList.add('hidden'); renderFloor(); hasUnsavedChanges=true; updateStepper(); });
+  floorContainer.addEventListener('pointerleave', ()=>{ if(floorDraggingIdx!==null){ floorDraggingIdx=null; floorLoupe.classList.add('hidden'); renderFloor(); }});
+
+  // Camera container events
+  camContainer.addEventListener('pointerdown', e=>{
+    if(camDraggingIdx!==null||!getSelectedCamera()) return;
+    const rect = computeCamRect();
+    if(!rect) return;
+    camImgRect=rect;
+    const x=e.clientX - rect.containerRect.left - rect.offsetX;
+    const y=e.clientY - rect.containerRect.top - rect.offsetY;
+    if(x<0||x>rect.renderWidth||y<0||y>rect.renderHeight) return;
+    const px=Math.max(0,Math.min(100,(x/rect.renderWidth)*100));
+    const py=Math.max(0,Math.min(100,(y/rect.renderHeight)*100));
+    camHistory.push([...cameraPoints]);
+    camFuture=[];
+    cameraPoints.push({x:px,y:py});
+    updateCam();
+  });
+  camContainer.addEventListener('pointermove', e=>{
+    if(camDraggingIdx===null) return;
+    const rect=computeCamRect();
+    if(!rect) return;
+    camImgRect=rect;
+    const x=e.clientX - rect.containerRect.left - rect.offsetX;
+    const y=e.clientY - rect.containerRect.top - rect.offsetY;
+    const px=Math.max(0,Math.min(100,(x/rect.renderWidth)*100));
+    const py=Math.max(0,Math.min(100,(y/rect.renderHeight)*100));
+    camPointerPos={x:e.clientX - rect.containerRect.left, y:e.clientY - rect.containerRect.top};
+    cameraPoints[camDraggingIdx]={x:px,y:py};
+    renderCam();
+  });
+  camContainer.addEventListener('pointerup', ()=>{ camDraggingIdx=null; camLoupe.classList.add('hidden'); renderCam(); hasUnsavedChanges=true; updateStepper(); });
+  camContainer.addEventListener('pointerleave', ()=>{ if(camDraggingIdx!==null){ camDraggingIdx=null; camLoupe.classList.add('hidden'); renderCam(); }});
+
+  // Undo redo clear
+  document.getElementById('floor-undo').addEventListener('click', ()=>{
+    if(floorHistory.length===0) return;
+    const prev=floorHistory.pop(); floorFuture.unshift([...floorPlanPoints]); floorPlanPoints=prev; updateFloor();
+  });
+  document.getElementById('floor-redo').addEventListener('click', ()=>{
+    if(floorFuture.length===0) return;
+    const nxt=floorFuture.shift(); floorHistory.push([...floorPlanPoints]); floorPlanPoints=nxt; updateFloor();
+  });
+  document.getElementById('floor-clear').addEventListener('click', ()=>{
+    if(floorPlanPoints.length===0) return;
+    floorHistory.push([...floorPlanPoints]); floorFuture=[]; floorPlanPoints=[]; updateFloor();
+  });
+  document.getElementById('cam-undo').addEventListener('click', ()=>{
+    if(camHistory.length===0) return;
+    const prev=camHistory.pop(); camFuture.unshift([...cameraPoints]); cameraPoints=prev; updateCam();
+  });
+  document.getElementById('cam-redo').addEventListener('click', ()=>{
+    if(camFuture.length===0) return;
+    const nxt=camFuture.shift(); camHistory.push([...cameraPoints]); cameraPoints=nxt; updateCam();
+  });
+  document.getElementById('cam-clear').addEventListener('click', ()=>{
+    if(cameraPoints.length===0) return;
+    camHistory.push([...cameraPoints]); camFuture=[]; cameraPoints=[]; updateCam();
+  });
+
+  // Colour + Draw Line (outline on/off) per panel
+  function setupTools(prefix, getColor, setColor, getLines, setLines, rerender){
+    const swatch=document.getElementById(`${prefix}-color`);
+    const menu=document.getElementById(`${prefix}-color-menu`);
+    const lines=document.getElementById(`${prefix}-lines`);
+    swatch.style.background=getColor();
+    swatch.addEventListener('click', e=>{
+      e.stopPropagation();
+      const open=menu.hidden;
+      document.querySelectorAll('.ac-menu').forEach(m=>{ m.hidden=true; });
+      if(!open) return;
+      menu.innerHTML=COLORS.map(c=>`<button type="button" data-c="${c}" class="ac-swatch${c===getColor()?' is-active':''}" style="background:${c};"></button>`).join('');
+      menu.querySelectorAll('[data-c]').forEach(b=>b.addEventListener('click', ()=>{
+        menu.hidden=true; setColor(b.dataset.c); swatch.style.background=b.dataset.c; rerender();
+      }));
+      menu.hidden=false;
+    });
+    lines.addEventListener('click', ()=>{
+      setLines(!getLines()); lines.classList.toggle('is-active', getLines()); rerender();
+    });
+  }
+  setupTools('floor', ()=>floorColor, c=>{ floorColor=c; savePref('cal-floor-color', c); }, ()=>floorLines, v=>{ floorLines=v; }, ()=>{ renderFloor(); renderValSvgs(); });
+  setupTools('cam', ()=>camColor, c=>{ camColor=c; savePref('cal-cam-color', c); }, ()=>camLines, v=>{ camLines=v; }, ()=>{ renderCam(); renderValSvgs(); });
+
+  // Leaving with points that were never saved loses them — ask first.
+  function confirmLeave(e){
+    if(hasUnsavedChanges && (floorPlanPoints.length || cameraPoints.length)
+       && !confirm('You have unsaved reference points. Leave without saving?')) e.preventDefault();
+  }
+  document.getElementById('btn-cancel').addEventListener('click', confirmLeave);
+  document.getElementById('back-link').addEventListener('click', confirmLeave);
+
+  // Dropdown
+  function togglePill(btn, menu, render){
+    btn.addEventListener('click', e=>{
+      e.stopPropagation();
+      const open = menu.hidden;
+      netDropdown.hidden = true; camDropdown.hidden = true;
+      if(open){ render(); menu.hidden = false; }
+    });
+  }
+  togglePill(netDropdownBtn, netDropdown, renderNetDropdown);
+  togglePill(camDropdownBtn, camDropdown, renderCamDropdown);
+  document.addEventListener('mousedown', e=>{
+    if(!camDropdownWrap.contains(e.target)) camDropdown.hidden = true;
+    if(!document.getElementById('net-dropdown-wrap').contains(e.target)) netDropdown.hidden = true;
+  });
+  camRefresh.addEventListener('click', ()=>{
+    const sel=getSelectedCamera();
+    if(sel && !camPicBusy && currentStep===1) showCamPicture(sel, true);
+  });
+
+  function ensureValImagesThenRender(){
+    const tryRender=()=>{
+      const floorOk = valFloorImage.complete && valFloorImage.naturalWidth>0;
+      const camOk = valCamImage.complete && valCamImage.naturalWidth>0;
+      if(floorOk) valFloorImgRect=computeValFloorRect();
+      if(camOk) valCamImgRect=computeValCamRect();
+      renderValSvgs();
+      if(!floorOk || !camOk){
+        setTimeout(tryRender, 100);
+      }
+    };
+    valFloorImage.onload = tryRender;
+    valCamImage.onload = tryRender;
+    valFloorImage.onerror = tryRender;
+    valCamImage.onerror = tryRender;
+    tryRender();
+  }
+  btnGoStep2.addEventListener('click', ()=>{
+    const floorCount=floorPlanPoints.length, camCount=cameraPoints.length;
+    const isMatch=floorCount===camCount&&floorCount>0;
+    const isMin=floorCount>=4;
+    const sel=getSelectedCamera();
+    if(!(isMatch&&isMin&&sel)) return;
+    savePending(floorplan.id, sel, cameraPoints, floorPlanPoints);
+    hasUnsavedChanges=true;
+    targetPoint=null;
+    mode='test';
+    transformErrorEl.classList.add('hidden');
+    const sel2=getSelectedCamera();
+    valCamBadge.textContent = sel2 ? `${sel2.name || sel2.ip} - Camera ${sel2.channel}` : 'Camera';
+    // ตั้ง src ก่อนเปลี่ยน step เพื่อให้ updateStepper รอภาพได้ถูก
+    valFloorImage.src = floorImage.src;
+    if(sel2) showValCamPicture(sel2);
+    currentStep=2;
+    // The reference points may have changed: map the hot zones again when opened
+    // (zones placed by hand stay where they were put).
+    hzState='idle'; hzLoadSeq++;
+    updateStepper();
+  });
+  btnStep1.addEventListener('click', ()=>{
+    if(currentStep===2){ currentStep=1; mode='test'; roiToolbar.classList.add('hidden'); updateStepper(); }
+  });
+  btnBackStep1.addEventListener('click', ()=>{ currentStep=1; mode='test'; roiToolbar.classList.add('hidden'); updateStepper(); });
+
+  // Delete calibration
+  async function handleDelete(){
+    const sel=getSelectedCamera();
+    if(!sel||!floorplan) return;
+    const hasDb=!!calibrationId;
+    const pending=loadPending(floorplan.id, sel);
+    const hasPoints=cameraPoints.length>0||floorPlanPoints.length>0;
+    if(!hasDb&&!pending&&!hasPoints) return;
+    const msg = hasDb ? `Delete the saved calibration for ${sel.name||sel.ip} - Camera ${sel.channel}?` : `Clear the unsaved points for ${sel.name||sel.ip} - Camera ${sel.channel}?`;
+    if(!confirm(msg)) return;
+    try{
+      if(hasDb&&calibrationId){
+        const res=await fetch(`${API_BASE}/floorplan/cameras/${calibrationId}`, {method:'DELETE'});
+        if(!res.ok) throw new Error('delete failed');
+        dbCameras=dbCameras.filter(c=>c.id!==calibrationId);
+      }
+      clearPending(floorplan.id, sel);
+      calibrationId=null; cameraPoints=[]; floorPlanPoints=[]; floorHistory=[]; floorFuture=[]; camHistory=[]; camFuture=[];
+      hasUnsavedChanges=false; targetPoint=null; hzReset([]); savedCal=null;
+      currentStep=1;
+      renderFloor(); renderCam(); renderValSvgs(); renderZoneList(); updateStepper();
+      ToastManager.success(hasDb ? 'Calibration deleted' : 'Points cleared');
+    }catch(e){ console.error(e); ToastManager.error('Could not delete the calibration'); }
+  }
+  btnDeleteStep1.addEventListener('click', handleDelete);
+  btnDeleteStep2.addEventListener('click', handleDelete);
+
+  // Validate mode toggle
+  modeTestBtn.addEventListener('click', ()=>{
+    mode='test';
+    roiToolbar.classList.add('hidden');
+    renderValSvgs(); updateStepper();
+  });
+  modeRoiBtn.addEventListener('click', ()=>{
+    mode='roi';
+    roiToolbar.classList.remove('hidden');
+    targetPoint=null; transformErrorEl.classList.add('hidden');
+    renderValSvgs(); updateStepper();
+  });
+  document.getElementById('zone-add').addEventListener('click', ()=>{
+    const idx=zones.length;
+    const nz={id:'zone-'+Date.now(), name:`Zone ${idx+1}`, color:ZONE_PALETTE[idx%ZONE_PALETTE.length], points:[]};
+    zones.push(nz); activeZoneId=nz.id; renderZoneList(); renderValSvgs();
+  });
+  document.getElementById('zone-undo').addEventListener('click', ()=>{
+    zones = zones.map(z=> z.id===activeZoneId ? {...z, points: z.points.slice(0,-1)} : z);
+    renderZoneList(); renderValSvgs();
+  });
+
+  // ---------------- Calibrate Hot Zone ----------------
+  // Where Alitech draws each Zone Area zone (Count Zone / Check Out of this camera) on the
+  // floor plan. The admin projects the camera corners through the SAVED calibration matrix
+  // and leaves out a zone that runs off the calibrated area (hzAdminShape, its own rule);
+  // a zone placed by hand here (hotzone_floor) is drawn as placed instead. The zone itself
+  // is edited on Zone Area; the camera picture here only shows it.
+  // Each placement is a Polygon (free corners) or a Square (a rectangle at any angle,
+  // z.rect), edited in screen pixels (ShapeTools) so a rectangle looks square on screen.
+  const HZ_TYPES = { count: 'Count Zone', checkout: 'Check Out' };
+  const HZ_COLORS = ['#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#ef4444', '#0ea5e9', '#84cc16'];
+  const HZ_ZONE_AREA_URL = `${window.location.protocol}//${window.location.host}${appUrl('api/svc/hotzone_service/polygons')}`;
+  const HZ_HULL_MARGIN = 6;      // the admin's _ZONE_SHAPE_MARGIN (percent of the plan)
+  const HZ_MAX_CORNERS = 64;
+  const hzClamp = v => Math.max(0, Math.min(100, v));
+  const hzCopy = pts => pts ? pts.map(p=>({x:p.x, y:p.y})) : null;
+  const hzActive = () => hzZones.find(z=>z.id===hzActiveId) || null;
+  const hzName = (s, i) => (String(s ?? '').trim().slice(0, 60) || `Zone ${i+1}`);
+  const hzRound = v => Math.round(v*100)/100;
+  function hzPts(raw){
+    return (Array.isArray(raw) ? raw : [])
+      .map(p=> Array.isArray(p) ? {x:Number(p[0]), y:Number(p[1])} : {x:Number(p && p.x), y:Number(p && p.y)})
+      .filter(p=> Number.isFinite(p.x) && Number.isFinite(p.y));
+  }
+  function hzSamePts(a, b){
+    return !!a && !!b && a.length===b.length && a.every((p,i)=> Math.abs(p.x-b[i].x)<0.05 && Math.abs(p.y-b[i].y)<0.05);
+  }
+  const hzEdited = z => !hzSamePts(z.cam, z.camOrig);
+  // A placement on the floor plan has its own corners (any number from 3): it does not follow the corners of the zone on the camera.
+  const hzPlaced = z => (z.floor && z.floor.length>=3) ? z.floor : null;
+
+
+  // ---- the admin's projection (data_service pipeline_service._project_zone_points) ----
+  function hzHull(points){
+    const pts=[...new Map(points.map(p=>[`${p[0]},${p[1]}`, p])).values()].sort((a,b)=> a[0]-b[0] || a[1]-b[1]);
+    if(pts.length<3) return [];
+    const cross=(o,a,b)=> (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0]);
+    const lower=[], upper=[];
+    for(const p of pts){ while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], p)<=0) lower.pop(); lower.push(p); }
+    for(const p of [...pts].reverse()){ while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], p)<=0) upper.pop(); upper.push(p); }
+    const hull=[...lower.slice(0,-1), ...upper.slice(0,-1)];
+    return hull.length>=3 ? hull : [];
+  }
+  function hzNearHull(pt, hull){
+    for(let i=0;i<hull.length;i++){
+      const a=hull[i], b=hull[(i+1)%hull.length];
+      const len=Math.hypot(b[0]-a[0], b[1]-a[1]);
+      if(!len) continue;
+      if(((b[0]-a[0])*(pt[1]-a[1]) - (b[1]-a[1])*(pt[0]-a[0]))/len < -HZ_HULL_MARGIN) return false;
+    }
+    return true;
+  }
+  function hzAdminModel(){
+    const H=savedCal && savedCal.matrix;
+    if(!Array.isArray(H) || H.length!==3 || !H.every(r=>Array.isArray(r) && r.length===3 && r.every(Number.isFinite))) return null;
+    const hull=hzHull((savedCal.dst||[]).map(p=>[Number(p[0]), Number(p[1])]).filter(p=>p.every(Number.isFinite)));
+    return hull.length ? {H, hull} : null;
+  }
+  // Where Alitech draws a zone not placed by hand, or null when it leaves it out.
+  function hzAdminShape(cam, model){ return hzAdminCheck(cam, model).shape; }
+  // The admin's rules, corner by corner, so the page can say why a zone is left out:
+  // {shape|null, horizon:[corner numbers that do not reach the floor], outside:[corner
+  // numbers more than HZ_HULL_MARGIN% beyond the reference points], noCal:bool}.
+  function hzAdminCheck(cam, model){
+    if(!model) return {shape:null, horizon:[], outside:[], noCal:true};
+    const out=[], horizon=[], outside=[];
+    cam.forEach((p, i)=>{
+      const H=model.H;
+      const w=H[2][0]*p.x + H[2][1]*p.y + H[2][2];
+      const x=(H[0][0]*p.x + H[0][1]*p.y + H[0][2])/w, y=(H[1][0]*p.x + H[1][1]*p.y + H[1][2])/w;
+      if(!Number.isFinite(x) || !Number.isFinite(y) || !(w>1e-9)){ horizon.push(i); return; }
+      if(!hzNearHull([x,y], model.hull)){ outside.push(i); return; }
+      out.push({x:hzRound(hzClamp(x)), y:hzRound(hzClamp(y))});
+    });
+    const ok=cam.length>=3 && !horizon.length && !outside.length;
+    return {shape: ok ? out : null, horizon, outside, noCal:false};
+  }
+  // What keeps the zone's camera corners off Alitech (the admin's rules), or null when they
+  // map. For a zone placed on Alitech it is said too: the placement covers for it.
+  function hzWhyHidden(z, model){
+    const c=hzAdminCheck(z.cam, model);
+    if(c.shape) return null;
+    const list=a=> (a.length>1 ? 'camera corners ' : 'camera corner ') + a.join(', ');
+    if(c.noCal) return 'the calibration is not saved yet';
+    const why=[];
+    if(c.horizon.length) why.push(`${list(c.horizon)} ${c.horizon.length>1?'are':'is'} above the floor line`);
+    if(c.outside.length) why.push(`${list(c.outside)} ${c.outside.length>1?'are':'is'} outside the reference points (>${HZ_HULL_MARGIN}%)`);
+    return why.join('; ');
+  }
+  // Corners that keep the zone off Alitech (shown red on the camera).
+  function hzOffCorners(z, model){
+    if(!model) return [];
+    const c=hzAdminCheck(z.cam, model);
+    return c.shape ? [] : [...c.horizon, ...c.outside];
+  }
+  // What Alitech will draw for the zone as it is on screen now.
+  const hzAlitechShape = (z, model) => hzPlaced(z) || hzAdminShape(z.cam, model);
+  // The Alitech side's editable shape: the placement, else what the admin projects, else
+  // the page's own mapping (lens corrected) as a place to start from.
+  const hzFloorShape = (z, model) => hzPlaced(z) || hzAdminShape(z.cam, model) || z.mapped;
+  // Alitech draws with the saved calibration; points changed since are not in it yet.
+  function hzCalUnsaved(){
+    if(!savedCal) return true;
+    const same=(a,b)=> a.length===b.length && a.every((p,i)=> Math.abs(p[0]-b[i][0])<1e-6 && Math.abs(p[1]-b[i][1])<1e-6);
+    return !same(savedCal.src||[], toTuples(cameraPoints)) || !same(savedCal.dst||[], toTuples(floorPlanPoints));
+  }
+
+  async function hzFetchZoneArea(cam){
+    const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 8000);
+    try{
+      const res=await fetch(HZ_ZONE_AREA_URL, {cache:'no-store', signal:ctrl.signal});
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const all=await res.json();
+      if(!Array.isArray(all)) throw new Error('bad reply');
+      hzAll=all.filter(p=> p && HZ_TYPES[(p.type || 'count')] !== undefined && hzPts(p.points).length>=3);
+      if(!cam) return [];
+      return hzAll.filter(p=> p.ip===cam.ip && Number(p.channel)===Number(cam.channel))
+        .map((p,i)=>({
+          id: String(p.id ?? `zone-${i+1}`).slice(0, 64),
+          type: p.type || 'count',
+          name: hzName(p.name, i),
+          raw: p,   // as Zone Area keeps it
+          // Zone Area keeps fractions of the picture; the calibration keeps percent.
+          cam: hzPts(p.points).map(pt=>({x:hzClamp(pt.x*100), y:hzClamp(pt.y*100)})),
+        }))
+        .filter(z=> z.cam.length>=3);
+    }finally{ clearTimeout(to); }
+  }
+
+  // The page's own mapping (lens + H + TPS, unsaved points included) of every corner.
+  async function hzMap(list){
+    const flat=list.flatMap(z=> z.cam.map(p=>[p.x, p.y]));
+    if(!flat.length) return [];
+    const res=await fetch(`${API_BASE}/floorplan/map-points`, {method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({src_points:toTuples(cameraPoints), dst_points:toTuples(floorPlanPoints), points:flat, direction:'cam_to_floor'})});
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.detail || `HTTP ${res.status}`); }
+    return res.json();
+  }
+  async function hzRemap(){
+    const stale=hzZones.filter(z=> z.mappedFor!==JSON.stringify(z.cam));
+    if(!stale.length) return;
+    try{
+      const res=await hzMap(stale);
+      let k=0;
+      const byId=new Map(stale.map(z=>{
+        const m=z.cam.map(()=>{ const r=res[k++]||{}; return r.success && Number.isFinite(r.x) && Number.isFinite(r.y) ? {x:hzClamp(r.x), y:hzClamp(r.y)} : {x:50, y:50}; });
+        return [z.id, {mapped:m, mappedFor:JSON.stringify(z.cam)}];
+      }));
+      hzZones=hzZones.map(z=> byId.has(z.id) ? {...z, ...byId.get(z.id)} : z);
+      renderValSvgs();
+    }catch(err){ console.warn('[hot zones] could not map:', err && err.message); }
+  }
+
+  async function loadHotzones(){
+    const sel=getSelectedCamera();
+    if(!sel) return;
+    const seq=++hzLoadSeq;
+    hzState='loading'; renderHotzoneList();
+    try{
+      const list=await hzFetchZoneArea(sel);
+      if(seq!==hzLoadSeq) return;
+      // Reloading after a change of the reference points keeps what is on screen: camera
+      // edits not saved yet (while Zone Area still has the zone as it was) and placements.
+      const prev=new Map(hzZones.map(z=>[z.id, z]));
+      list.forEach(z=>{
+        const p=prev.get(z.id);
+        z.camOrig=hzCopy(z.cam);
+        if(p && hzSamePts(p.camOrig, z.cam) && hzEdited(p)) z.cam=hzCopy(p.cam);
+      });
+      const mapped=await hzMap(list);
+      if(seq!==hzLoadSeq) return;
+      const manual=new Map();
+      if(prev.size){
+        prev.forEach(z=>{ if(z.floor) manual.set(z.id, {floor:z.floor, cam:z.cam}); });
+      } else {
+        (hzSavedRaw || []).forEach(s=>{
+          const id=String(s.zone_id ?? s.zoneId ?? '');
+          if(id) manual.set(id, {floor:hzPts(s.floor_points ?? s.floorPoints), cam:hzPts(s.camera_points ?? s.cameraPoints)});
+        });
+      }
+      hzRedrawn=[];
+      let k=0;
+      hzZones=list.map((z,i)=>{
+        const m=z.cam.map(()=>{
+          const r=mapped[k++] || {success:false};
+          return r.success && Number.isFinite(r.x) && Number.isFinite(r.y) ? {x:hzClamp(r.x), y:hzClamp(r.y)} : {x:50, y:50};
+        });
+        let floor=null;
+        const saved=manual.get(z.id);
+        if(saved){
+          // Kept as placed even when the zone was redrawn on Zone Area since (then with a word).
+          if(saved.floor.length>=3){
+            floor=saved.floor.map(p=>({x:hzClamp(p.x), y:hzClamp(p.y)}));
+            if(!prev.size && saved.cam.length && !hzSamePts(saved.cam, z.cam)) hzRedrawn.push(z.name);
+          }
+        }
+        const prevZ=prev.get(z.id);
+        // A saved rectangle opens as Square; told once the floor plan picture has a size (hzResolveRect).
+        const rect = floor ? (prevZ && prevZ.floor ? !!prevZ.rect : undefined) : false;
+        return {...z, color:HZ_COLORS[i % HZ_COLORS.length], mapped:m, mappedFor:JSON.stringify(z.cam), floor, rect};
+      });
+      if(!hzZones.some(z=>z.id===hzActiveId)) hzActiveId=hzZones[0] ? hzZones[0].id : null;
+      hzState='ready';
+    }catch(err){
+      if(seq!==hzLoadSeq) return;
+      console.warn('[hot zones] could not load:', err && err.message);
+      hzState='error'; hzZones=[]; hzActiveId=null;
+    }
+    renderHotzoneList(); renderValSvgs(); renderCam();
+  }
+
+  // The one thing to fix about a zone, or null. Shown under the toolbar for the zone
+  // picked, and as an amber tag on every zone that has one.
+  function hzZoneWarning(z, model){
+    if(!z) return null;
+    const why = model ? hzWhyHidden(z, model) : null;
+    if(!hzPlaced(z) && !hzAdminShape(z.cam, model)) return `${z.name} not shown on Alitech yet: ${why || 'no saved calibration'}. Drag it into place and Save.`;
+    if(hzPlaced(z) && hzRedrawn.includes(z.name)) return `${z.name}: changed on Zone Area since placed — check it.`;
+    if(hzPlaced(z) && why) return `${z.name}: shown as placed here; ${why}.`;
+    return null;
+  }
+
+  const hzToolText = z => z && z.rect
+    ? 'Square: drag a corner to resize · drag the zone to move · drag the turn handle around to turn it.'
+    : 'Polygon: drag a corner or the zone · click to add a corner · double-click to remove.';
+
+  function hzResolveRect(){
+    hzZones.forEach(z=>{ if(z.rect===undefined && z.floor){ const px=hzToPx(z.floor); if(px) z.rect=ShapeTools.isRect(px); } });
+  }
+
+  function renderHotzoneList(){
+    hzResolveRect();
+    const list=document.getElementById('hz-list');
+    const note=document.getElementById('hz-note');
+    const model=hzAdminModel();
+    list.innerHTML='';
+    hzZones.forEach(z=>{
+      const on=z.id===hzActiveId;
+      const b=document.createElement('button');
+      b.type='button';
+      b.className='cal-zone'+(on?' is-active':'');
+      if(on){ b.style.color=z.color; b.style.background=fillOf(z.color, 0.12); }
+      const dot=document.createElement('span');
+      dot.style.cssText=`width:10px;height:10px;border-radius:50%;background:${z.color}`;
+      const name=document.createElement('span'); name.textContent=z.name;
+      const placed=!!hzPlaced(z), shown=!!hzAlitechShape(z, model);
+      const tag=document.createElement('span');
+      const status=placed ? 'placed' : shown ? 'from camera' : 'not shown yet';
+      tag.className='hz-tag'+(placed ? ' is-moved' : '');
+      tag.textContent=`${HZ_TYPES[z.type]} · ${status}`;
+      b.append(dot, name, tag);
+      const w=hzZoneWarning(z, model);
+      if(w){ tag.classList.add('is-warn'); b.title=w; }   // no icon: the tag turns amber
+      b.addEventListener('click', ()=>{ hzActiveId=z.id; renderHotzoneList(); renderValSvgs(); });
+      list.appendChild(b);
+    });
+    const z=hzActive();
+    const reset=document.getElementById('hz-reset');
+    reset.disabled = !(z && z.floor);
+    reset.title = 'Put this zone back where Alitech draws it from the camera';
+    document.getElementById('hz-undo').disabled = hzHistory.length===0;
+    let text, warn=false, gotoZoneArea=false;
+    const withZones=hzCamerasWithZones();
+    if(hzState==='loading') text='Loading the zones from Zone Area...';
+    else if(hzState==='error'){ text='Could not read the zones from Zone Area. Try again in a moment.'; warn=true; }
+    else if(!hzZones.length){
+      warn=true;
+      if(!withZones.length){
+        text='No hot zone drawn yet. Draw at least 1 hot zone (Count Zone or Check Out) on Zone Area first, then come back here.';
+        gotoZoneArea=true;
+      } else {
+        text='This camera has no hot zone on Zone Area. Pick a camera that has one from the Camera list above: '
+          + withZones.map(c=>`Camera ${c.cam.channel}`).join(', ') + '.';
+      }
+    }
+    else {
+      // About the zone picked only; the others show an amber tag.
+      text=hzToolText(z);
+      const warn1=hzZoneWarning(z, model);
+      if(warn1){ text=warn1+' '+text; warn=true; }
+    }
+    const toolSeg=document.getElementById('hz-tool');
+    toolSeg.classList.toggle('hidden', !z || hzState!=='ready');
+    toolSeg.querySelectorAll('[data-tool]').forEach(b=> b.classList.toggle('is-active', b.dataset.tool===(z && z.rect ? 'square' : 'polygon')));
+    note.textContent=text;
+    note.classList.toggle('is-warn', warn);
+    const goto=document.getElementById('hz-goto-za');
+    goto.href=appUrl('/zone-draw');
+    goto.classList.toggle('hidden', !gotoZoneArea);
+  }
+
+  // Hot zones on Zone Area for one camera (Count Zone + Check Out); 0 while not known.
+  function hzZoneCount(cam){
+    if(!Array.isArray(hzAll) || !cam) return 0;
+    return hzAll.filter(p=> p.ip===cam.ip && Number(p.channel)===Number(cam.channel)).length;
+  }
+  // "Camera 3 · 2 zones" on Calibrate Hot Zone only — which cameras have hot zones.
+  function camLabel(cam){
+    const n=(currentStep===2 && mode==='hz') ? hzZoneCount(cam) : 0;
+    return `Camera ${cam.channel}` + (n ? ` · ${n} zone${n===1?'':'s'}` : '');
+  }
+  // From the Camera list: on Calibrate Hot Zone it stays there (on the new camera).
+  function pickCamera(cam){
+    if(currentStep===2 && mode==='hz') hzSwitchCamera(cam);
+    else handleSelectCamera(cam);
+  }
+
+  // Selected cameras (Camera Selection) that have at least one Count Zone / Check Out.
+  function hzCamerasWithZones(){
+    if(!Array.isArray(hzAll)) return [];
+    const counts=new Map();
+    hzAll.forEach(p=>{ const k=`${p.ip}_${Number(p.channel)}`; counts.set(k, (counts.get(k)||0)+1); });
+    return channels
+      .map(cam=>{
+        const key=`${cam.ip}_${Number(cam.channel)}`;
+        const cal=dbCameras.find(c=> isSameCal(c, cam));
+        const n=cal ? Math.min((getCalSrc(cal)||[]).length, (getCalDst(cal)||[]).length) : 0;
+        return {cam, key:`${cam.ip}_${cam.channel}`, count:counts.get(key)||0, calibrated:n>=4};
+      })
+      .filter(c=> c.count>0);
+  }
+
+  function hzSwitchCamera(cam){
+    if(hzDirty && !confirm('The hot zone changes on this camera are not saved yet. Switch camera anyway?')) return;
+    hzOpenAfterLoad=`${cam.ip}_${cam.channel}`;
+    handleSelectCamera(cam);
+  }
+  // After switching camera from the Camera list: straight back to Calibrate Hot Zone
+  // when the camera has its reference points, otherwise stay on step 1 to set them.
+  function hzOpenIfAsked(){
+    if(!hzOpenAfterLoad || hzOpenAfterLoad!==selectedCamKey) return;
+    hzOpenAfterLoad=null;
+    if(btnGoStep2.disabled){
+      ToastManager.info('Set the reference points of this camera first', 'At least 4 matching points on the floor plan and the camera, then Next and Calibrate Hot Zone.');
+      return;
+    }
+    btnGoStep2.click();
+    modeHzBtn.click();
+  }
+
+  function renderHotzones(){
+    valFloorContainer.querySelectorAll('.hz-el').forEach(el=>el.remove());
+    valCamContainer.querySelectorAll('.hz-el').forEach(el=>el.remove());
+    valFloorContainer.classList.remove('is-hz-move', 'is-hz-edit');
+    valCamContainer.classList.remove('is-hz-move', 'is-hz-edit');
+    if(currentStep!==2 || mode!=='hz' || hzState!=='ready') return;
+    const unresolved=hzZones.some(z=>z.rect===undefined);
+    hzResolveRect();
+    if(unresolved && !hzZones.some(z=>z.rect===undefined)) renderHotzoneList();
+    const model=hzAdminModel();
+    const NS='http://www.w3.org/2000/svg';
+    const draw=(svg, rect, pts, z, on, ghost)=>{
+      const poly=document.createElementNS(NS, 'polygon');
+      poly.setAttribute('class', 'hz-el'+(ghost?' hz-ghost':''));
+      poly.setAttribute('points', pts.map(p=>`${(p.x/100)*rect.renderWidth},${(p.y/100)*rect.renderHeight}`).join(' '));
+      poly.setAttribute('stroke', z.color);
+      poly.setAttribute('stroke-linejoin', 'round');
+      if(ghost){
+        // where the zone was before it was placed: the same solid look, only faded
+        poly.setAttribute('fill', fillOf(z.color, 0.12)); poly.setAttribute('stroke-width', 1.4);
+        poly.setAttribute('opacity', on ? 0.6 : 0.35);
+      } else {
+        poly.setAttribute('fill', fillOf(z.color, on ? 0.28 : 0.12));
+        poly.setAttribute('stroke-width', on ? 2.4 : 1.4);
+        if(!on) poly.setAttribute('stroke-dasharray', '6 5');
+      }
+      svg.appendChild(poly);
+    };
+    const label=(container, rect, pts, z, faded)=>{
+      const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length, cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+      const el=document.createElement('div');
+      el.className='hz-label hz-el';
+      el.style.left=(rect.offsetX+(cx/100)*rect.renderWidth)+'px';
+      el.style.top=(rect.offsetY+(cy/100)*rect.renderHeight)+'px';
+      el.style.borderColor=z.color; el.style.color=z.color;
+      el.textContent=z.name;
+      if(faded){ el.style.opacity='0.5'; el.style.zIndex='14'; }   // the other side's zone: name faded with it
+      container.appendChild(el);
+    };
+    const corners=(container, rect, pts, z, side, off)=>{
+      pts.forEach((p, idx)=>{
+        const d=document.createElement('div');
+        d.className='hz-dot hz-el'+(side?' is-edit':'')+(off && off.includes(idx)?' is-off':'');
+        d.style.left=(rect.offsetX+(p.x/100)*rect.renderWidth)+'px';
+        d.style.top=(rect.offsetY+(p.y/100)*rect.renderHeight)+'px';
+        d.style.borderColor=z.color; d.style.color=z.color;
+        d.textContent=idx;
+        if(side){
+          d.title = z.rect ? 'Drag to resize' : 'Drag to move this corner · double-click to remove it';
+          d.addEventListener('pointerdown', e=>{ e.stopPropagation(); e.preventDefault(); hzStartDrag(e, z, idx, side); });
+          d.addEventListener('click', e=> e.stopPropagation());
+          if(!z.rect) d.addEventListener('dblclick', e=>{ e.stopPropagation(); hzRemoveCorner(z.id, idx); });
+        }
+        container.appendChild(d);
+      });
+    };
+    // Square: the turn handle on the rectangle's side; drag it around to turn the rectangle.
+    const rotHandle=(container, rect, pts, z)=>{
+      const px=pts.map(p=>({x:(p.x/100)*rect.renderWidth, y:(p.y/100)*rect.renderHeight}));
+      const at=ShapeTools.handleAt(px, 18, rect.renderWidth, rect.renderHeight);
+      const h=document.createElement('div');
+      h.className='hz-rot hz-el';
+      h.style.left=(rect.offsetX+at.x)+'px'; h.style.top=(rect.offsetY+at.y)+'px';
+      h.style.borderColor=z.color; h.style.color=z.color;
+      h.title='Drag around to turn the zone';
+      h.innerHTML=ShapeTools.ICON_ROTATE;
+      h.addEventListener('pointerdown', e=>{ e.stopPropagation(); e.preventDefault(); hzStartDrag(e, z, -3, 'floor'); });
+      h.addEventListener('click', e=> e.stopPropagation());
+      container.appendChild(h);
+    };
+    const order=[...hzZones.filter(z=>z.id!==hzActiveId), ...hzZones.filter(z=>z.id===hzActiveId)];
+    if(valFloorImgRect){
+      order.forEach(z=>{
+        const on=z.id===hzActiveId;
+        const fromCam=hzAdminShape(z.cam, model) || z.mapped;
+        if(hzPlaced(z) && fromCam){ draw(valFloorSvg, valFloorImgRect, fromCam, z, on, true); label(valFloorContainer, valFloorImgRect, fromCam, z, true); }
+        const shape=hzFloorShape(z, model);
+        draw(valFloorSvg, valFloorImgRect, shape, z, on); label(valFloorContainer, valFloorImgRect, shape, z);
+        if(on){
+          corners(valFloorContainer, valFloorImgRect, shape, z, 'floor');
+          if(z.rect) rotHandle(valFloorContainer, valFloorImgRect, shape, z);
+        }
+      });
+      valFloorContainer.classList.toggle('is-hz-edit', !!hzActive() && !hzActive().rect);
+      valFloorContainer.classList.toggle('is-hz-move', !!hzActive() && !!hzActive().rect);
+    }
+    if(valCamImgRect){
+      order.forEach(z=>{
+        const on=z.id===hzActiveId;
+        draw(valCamSvg, valCamImgRect, z.cam, z, on); label(valCamContainer, valCamImgRect, z.cam, z);
+        if(on) corners(valCamContainer, valCamImgRect, z.cam, z, null, hzOffCorners(z, model));
+      });
+    }
+  }
+
+  function hzPct(side, e){
+    const r = side==='cam' ? computeValCamRect() : computeValFloorRect();
+    if(!r) return null;
+    return {x:((e.clientX - r.containerRect.left - r.offsetX)/r.renderWidth)*100,
+            y:((e.clientY - r.containerRect.top - r.offsetY)/r.renderHeight)*100};
+  }
+  function hzInside(pt, poly){
+    let inside=false;
+    for(let i=0, j=poly.length-1; i<poly.length; j=i++){
+      const a=poly[i], b=poly[j];
+      if(((a.y>pt.y)!==(b.y>pt.y)) && (pt.x < (b.x-a.x)*(pt.y-a.y)/(b.y-a.y)+a.x)) inside=!inside;
+    }
+    return inside;
+  }
+  function hzSnapshot(){ return hzZones.map(z=>({id:z.id, floor:hzCopy(z.floor), rect:!!z.rect})); }
+  function hzPush(snap){ hzHistory.push(snap || hzSnapshot()); if(hzHistory.length>100) hzHistory.shift(); }
+  function hzChanged(){ hzDirty=true; hasUnsavedChanges=true; renderHotzoneList(); renderValSvgs(); }
+  function hzSetFloor(zoneId, floor, rect){
+    hzZones=hzZones.map(z=> z.id===zoneId ? {...z, floor, rect: rect===undefined ? !!z.rect : rect} : z);
+  }
+  // Floor plan percent <-> screen pixels of the floor plan picture (ShapeTools works in px).
+  function hzToPx(pts){ const r=computeValFloorRect(); return r && r.renderWidth>10 && r.renderHeight>10 ? pts.map(p=>({x:p.x/100*r.renderWidth, y:p.y/100*r.renderHeight})) : null; }
+  function hzFromPx(pts){ const r=computeValFloorRect(); return pts.map(p=>({x:p.x/r.renderWidth*100, y:p.y/r.renderHeight*100})); }
+  const hzFits = pts => pts.every(p=> p.x>=-0.01 && p.y>=-0.01 && p.x<=100.01 && p.y<=100.01);
+  function hzStartDrag(e, z, idx, side){
+    const start=hzPct(side, e);
+    if(!start) return;
+    hzActiveId=z.id;
+    const base=hzCopy(hzFloorShape(z, hzAdminModel()));
+    hzDrag={side, zoneId:z.id, idx, start, base, basePx:hzToPx(base), startPx:hzToPx([start]), startY:e.clientY, moved:false, snapshot:hzSnapshot()};
+    if(idx>=0) hzShowLoupe(side, base[idx], z.color);
+  }
+  function hzAddCorner(zoneId, pt){
+    const z=hzZones.find(zz=>zz.id===zoneId);
+    if(!z || z.rect) return;
+    const shape=hzFloorShape(z, hzAdminModel());
+    if(shape.length>=HZ_MAX_CORNERS){ ToastManager.error(`A zone has at most ${HZ_MAX_CORNERS} corners`); return; }
+    const px=hzToPx(shape); if(!px) return;
+    // between the two corners whose side is nearest (measured on screen)
+    hzPush();
+    const next=hzFromPx(ShapeTools.insertAt(px, hzToPx([{x:hzClamp(pt.x), y:hzClamp(pt.y)}])[0]));
+    hzSetFloor(zoneId, next);
+    hzChanged();
+  }
+  function hzRemoveCorner(zoneId, idx){
+    const z=hzZones.find(zz=>zz.id===zoneId);
+    if(!z || z.rect) return;
+    const shape=hzFloorShape(z, hzAdminModel());
+    if(shape.length<=3){ ToastManager.error('A zone needs at least 3 corners'); return; }
+    hzPush();
+    hzSetFloor(zoneId, shape.filter((_,i)=>i!==idx).map(p=>({x:p.x, y:p.y})));
+    hzChanged();
+  }
+  // The same magnifier as on Set reference point, on the corner being dragged.
+  function hzMakeLoupe(container){
+    const l=document.createElement('div');
+    l.className='loupe hidden';
+    l.style.width='80px'; l.style.height='80px';
+    container.appendChild(l);
+    return l;
+  }
+  const hzLoupes={floor:hzMakeLoupe(valFloorContainer), cam:hzMakeLoupe(valCamContainer)};
+  function hzShowLoupe(side, pt, color){
+    const loupe=hzLoupes[side];
+    const container = side==='cam' ? valCamContainer : valFloorContainer;
+    const image = side==='cam' ? valCamImage : valFloorImage;
+    const r = side==='cam' ? computeValCamRect() : computeValFloorRect();
+    if(!r || !pt){ hzHideLoupe(); return; }
+    const x=r.offsetX+(pt.x/100)*r.renderWidth, y=r.offsetY+(pt.y/100)*r.renderHeight;
+    loupe.style.left=x+'px';
+    loupe.style.top=(y<80 ? y+60 : y-60)+'px';
+    loupe.style.transform='translate(-50%,-50%)';
+    loupe.innerHTML='';
+    const img=document.createElement('img');
+    img.src=image.src;
+    img.style.cssText=`position:absolute;width:${container.clientWidth*2}px;height:${container.clientHeight*2}px;`
+      + `left:${-(x*2)+40}px;top:${-(y*2)+40}px;max-width:none;pointer-events:none;object-fit:contain;`;
+    loupe.appendChild(img);
+    const cx=document.createElement('div'); cx.style.cssText=`position:absolute;inset:0;margin:auto;width:12px;height:1.5px;background:${color};border-radius:9999px;`;
+    const cy=document.createElement('div'); cy.style.cssText=`position:absolute;inset:0;margin:auto;width:1.5px;height:12px;background:${color};border-radius:9999px;`;
+    loupe.append(cx, cy);
+    loupe.classList.remove('hidden');
+  }
+  function hzHideLoupe(){ Object.values(hzLoupes).forEach(l=>{ l.classList.add('hidden'); l.innerHTML=''; }); }
+  // On the floor plan: a press inside the zone picked drags all of it; a click elsewhere adds
+  // a corner (Polygon only). Corners and the turn handle have their own handlers.
+  valFloorContainer.addEventListener('pointerdown', e=>{
+    if(currentStep!==2 || mode!=='hz' || hzState!=='ready') return;
+    const z=hzActive(); const pt=hzPct('floor', e);
+    if(!z || !pt || pt.x<0 || pt.x>100 || pt.y<0 || pt.y>100) return;
+    if(hzInside(pt, hzFloorShape(z, hzAdminModel()))){ e.preventDefault(); hzStartDrag(e, z, -1, 'floor'); }
+    else if(!z.rect){ e.preventDefault(); hzDrag={side:'floor', zoneId:z.id, idx:-2, start:pt, base:null, moved:false, snapshot:null}; }
+  });
+  window.addEventListener('pointermove', e=>{
+    if(!hzDrag) return;
+    const pt=hzPct(hzDrag.side, e);
+    if(!pt) return;
+    const dx=pt.x-hzDrag.start.x, dy=pt.y-hzDrag.start.y;
+    if(!hzDrag.moved && Math.hypot(dx, dy)<0.2 && Math.abs(e.clientY-hzDrag.startY)<2) return;
+    if(hzDrag.idx===-2){ hzDrag.moved=true; return; }   // a press that wandered: not a click
+    if(!hzDrag.moved){ hzPush(hzDrag.snapshot); hzDrag.moved=true; }
+    const base=hzDrag.base, z=hzZones.find(zz=>zz.id===hzDrag.zoneId);
+    const square=!!(z && z.rect && base.length===4 && hzDrag.basePx);
+    let next=null;
+    if(hzDrag.idx===-3 && square){
+      // the turn handle: the rectangle turns about its middle to follow the pointer
+      const now=hzToPx([pt]);
+      const fr=computeValFloorRect();
+      // ...moved back inside the plan when a corner would leave it
+      const turned = now && hzDrag.startPx && fr ? ShapeTools.nudgeInside(ShapeTools.rotate(hzDrag.basePx, ShapeTools.turnAngle(hzDrag.basePx, hzDrag.startPx[0], now[0])), fr.renderWidth, fr.renderHeight) : null;
+      if(turned) next=hzFromPx(turned);
+    } else if(hzDrag.idx>=0 && square){
+      const q=hzToPx([{x:hzClamp(base[hzDrag.idx].x+dx), y:hzClamp(base[hzDrag.idx].y+dy)}])[0];
+      next=hzFromPx(ShapeTools.resize(hzDrag.basePx, hzDrag.idx, q));
+    } else if(hzDrag.idx>=0){
+      next=base.map((p,i)=> i===hzDrag.idx ? {x:hzClamp(p.x+dx), y:hzClamp(p.y+dy)} : {x:p.x, y:p.y});
+    } else if(hzDrag.idx===-1){
+      // keep the whole zone inside the picture instead of squashing it at the edge
+      const minX=Math.min(...base.map(p=>p.x)), maxX=Math.max(...base.map(p=>p.x));
+      const minY=Math.min(...base.map(p=>p.y)), maxY=Math.max(...base.map(p=>p.y));
+      const cx=Math.max(-minX, Math.min(100-maxX, dx)), cy=Math.max(-minY, Math.min(100-maxY, dy));
+      next=base.map(p=>({x:p.x+cx, y:p.y+cy}));
+    }
+    // A square that would leave the plan stops where it was (squashing it would bend it).
+    if(!next || (square && !hzFits(next))) return;
+    hzSetFloor(hzDrag.zoneId, next);
+    renderValSvgs();
+    if(hzDrag.idx>=0){ hzShowLoupe(hzDrag.side, next[hzDrag.idx], z ? z.color : '#10b981'); }
+  });
+  window.addEventListener('pointerup', ()=>{
+    if(!hzDrag) return;
+    const d=hzDrag;
+    hzDrag=null;
+    hzHideLoupe();
+    if(!d.moved && d.idx===-2){ hzAddCorner(d.zoneId, d.start); return; }
+    // A press that moved nothing changes nothing: no redraw, so the corner it was on stays
+    // the same element and a double-click on it still reaches it.
+    if(d.moved && d.idx!==-2) hzChanged();
+  });
+  document.getElementById('hz-reset').addEventListener('click', ()=>{
+    const z=hzActive();
+    if(!z || !z.floor) return;
+    hzPush(); hzSetFloor(z.id, null, false);
+    hzChanged();
+  });
+  document.getElementById('hz-undo').addEventListener('click', ()=>{
+    const snap=hzHistory.pop();
+    if(!snap) return;
+    const byId=new Map(snap.map(s=>[s.id, s]));
+    hzZones=hzZones.map(z=> byId.has(z.id) ? {...z, floor:byId.get(z.id).floor, rect:byId.get(z.id).rect} : z);
+    hzChanged();
+  });
+  // Polygon or Square, for the zone picked. Square makes it the upright rectangle around it
+  // (a rectangle already, at any angle, stays as it is); Polygon keeps the corners it has.
+  // With placements not saved yet it asks first: Save (then switch), switch anyway, or stay.
+  document.querySelectorAll('#hz-tool [data-tool]').forEach(b=> b.addEventListener('click', async ()=>{
+    let z=hzActive();
+    if(!z) return;
+    const square=b.dataset.tool==='square';
+    if(!!z.rect===square) return;
+    if(hzDirty){
+      const zoneId=z.id;
+      const a=await ShapeTools.askSaveFirst({
+        title:'Save before switching?',
+        text:`There are hot zone changes that are not saved yet. Save them before switching ${z.name} to ${square ? 'Square' : 'Polygon'}?`,
+        saveLabel:'Save and switch', skipLabel:'Switch without saving'});
+      if(a==='cancel') return;
+      if(a==='save' && !(await saveCalibration())) return;
+      z=hzZones.find(zz=>zz.id===zoneId);
+      if(!z || !!z.rect===square) return;
+    }
+    const shape=hzFloorShape(z, hzAdminModel()), px=hzToPx(shape);
+    if(!px) return;
+    hzPush();
+    const wasDirty=hzDirty, wasUnsaved=hasUnsavedChanges, wasPlaced=!!z.floor;
+    if(square) hzSetFloor(z.id, ShapeTools.isRect(px) ? hzCopy(shape) : hzFromPx(ShapeTools.box(px)).map(p=>({x:hzClamp(p.x), y:hzClamp(p.y)})), true);
+    else hzSetFloor(z.id, hzCopy(shape), false);
+    // Only a switch that moves corners is a change to save (Polygon and Square are not saved
+    // as such: a rectangle opens as Square again).
+    const same = wasPlaced && hzSamePts(hzActive().floor, shape);
+    hzChanged();
+    if(same){ hzDirty=wasDirty; hasUnsavedChanges=wasUnsaved; renderHotzoneList(); }
+  }));
+  modeHzBtn.addEventListener('click', ()=>{
+    mode='hz';
+    roiToolbar.classList.add('hidden');
+    targetPoint=null; transformErrorEl.classList.add('hidden');
+    updateStepper(); renderValSvgs();
+    if(hzState!=='ready' && hzState!=='loading') loadHotzones(); else renderHotzoneList();
+  });
+
+  // Save, Alitech side: only zones placed by hand, with the camera corners they were placed for.
+  function hzPayload(){
+    return hzZones.filter(z=>hzPlaced(z)).map(z=>({
+      zoneId:z.id, type:z.type, name:z.name,
+      cameraPoints:z.cam.map(p=>({x:p.x, y:p.y})), floorPoints:z.floor.map(p=>({x:hzClamp(p.x), y:hzClamp(p.y)})),
+    }));
+  }
+  function hzReset(saved){
+    hzZones=[]; hzActiveId=null; hzHistory=[]; hzDirty=false; hzDrag=null; hzRedrawn=[];
+    hzSavedRaw=Array.isArray(saved) ? saved : [];
+    hzState='idle'; hzLoadSeq++;
+  }
+
+  // Validate click handling
+  async function handleValClick(e, source, imgEl, container){
+    if(!imgEl || mode==='hz') return;
+    const pct=clientToImagePercent(e.clientX, e.clientY, container, imgEl);
+    if(!pct) return;
+    if(mode==='roi' && source==='camera' && activeZoneId){
+      zones = zones.map(z=> z.id===activeZoneId ? {...z, points:[...z.points, {x:pct.x, y:pct.y}]} : z);
+      renderZoneList(); renderValSvgs(); return;
+    }
+    if(mode==='test'){
+      const direction = source==='camera' ? 'cam_to_floor' : 'floor_to_cam';
+      transformErrorEl.classList.add('hidden');
+      // Unsaved (newly marked) points always validate against themselves via
+      // preview — the saved endpoint below would test the OLD database
+      // points instead.
+      if(!calibrationId || hasUnsavedChanges){
+        if(!cameraPoints||cameraPoints.length<4||!floorPlanPoints||floorPlanPoints.length<4){
+          transformErrorEl.textContent='Set at least 4 pairs of points in step 1 before testing.';
+          transformErrorEl.classList.remove('hidden'); return;
+        }
+        if(cameraPoints.length!==floorPlanPoints.length){
+          transformErrorEl.textContent='The floor plan and the camera need the same number of points.';
+          transformErrorEl.classList.remove('hidden'); return;
+        }
+        try{
+          const src=toTuples(cameraPoints), dst=toTuples(floorPlanPoints);
+          const res=await fetch(`${API_BASE}/floorplan/transform-preview`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({src_points:src,dst_points:dst,x:pct.x,y:pct.y,direction})});
+          if(!res.ok){ const j=await res.json().catch(()=>({detail:res.statusText})); throw new Error(j.detail||'preview failed'); }
+          const r=await res.json();
+          if(r.success){
+            targetPoint = source==='camera' ? {camX:pct.x,camY:pct.y,floorX:r.x,floorY:r.y} : {camX:r.x,camY:r.y,floorX:pct.x,floorY:pct.y};
+            renderValSvgs();
+          } else {
+            transformErrorEl.textContent='Could not map this point (preview).'; transformErrorEl.classList.remove('hidden');
+          }
+        }catch(err){ transformErrorEl.textContent=err.message; transformErrorEl.classList.remove('hidden'); }
+        return;
+      }
+      try{
+        const res=await fetch(`${API_BASE}/floorplan/cameras/${calibrationId}/transform`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({x:pct.x,y:pct.y,direction})});
+        if(!res.ok){ const j=await res.json().catch(()=>({detail:res.statusText})); throw new Error(j.detail||'transform failed'); }
+        const r=await res.json();
+        if(r.success){
+          targetPoint = source==='camera' ? {camX:pct.x,camY:pct.y,floorX:r.x,floorY:r.y} : {camX:r.x,camY:r.y,floorX:pct.x,floorY:pct.y};
+          renderValSvgs();
+        } else {
+          transformErrorEl.textContent='Could not map this point. Save the calibration first.'; transformErrorEl.classList.remove('hidden');
+        }
+      }catch(err){ transformErrorEl.textContent=err.message; transformErrorEl.classList.remove('hidden'); }
+    }
+  }
+  valFloorContainer.addEventListener('click', e=> handleValClick(e,'floor', valFloorImage, valFloorContainer));
+  valCamContainer.addEventListener('click', e=> handleValClick(e,'camera', valCamImage, valCamContainer));
+
+  // Mapping quality shows on step 1 only (the live box while setting reference points).
+  function fmtErr(v){ return (v===null||v===undefined||!isFinite(v)) ? '–' : (Math.round(v*10)/10)+'%'; }
+  function escHtml(s){ return String(s??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function qualityHTML(metrics){
+    return `<div class="q-row"><span class="q-title">Mapping quality</span></div>`;
+  }
+  // Live per-point errors while placing step-1 points (mirrors cctv-reid
+  // PointErrorList). Debounced fit-preview; × deletes that point pair.
+  const ERR_GOOD = 2, ERR_WARN = 5;
+  function pairColor(err){
+    if(err===null||err===undefined||!isFinite(err)) return '#94a3b8';
+    if(err<ERR_GOOD) return '#10b981';
+    if(err<ERR_WARN) return '#f59e0b';
+    return '#ef4444';
+  }
+  function pairLabel(err){ return (err===null||err===undefined||!isFinite(err))?'n/a':err.toFixed(1)+'%'; }
+  let liveMetricsTimer=null, liveMetricsSeq=0;
+  function scheduleLiveMetrics(){
+    clearTimeout(liveMetricsTimer);
+    liveMetricsTimer=setTimeout(refreshLiveMetrics, 350);
+  }
+  async function refreshLiveMetrics(){
+    const seq=++liveMetricsSeq;
+    const wrap=document.getElementById('live-metrics');
+    const qEl=document.getElementById('live-quality');
+    const chipsEl=document.getElementById('pair-chips');
+    if(cameraPoints.length<4||floorPlanPoints.length<4||cameraPoints.length!==floorPlanPoints.length){
+      if(wrap) wrap.classList.add('hidden');
+      return;
+    }
+    try{
+      const r=await fetch(`${API_BASE}/floorplan/fit-preview`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({src_points:toTuples(cameraPoints),dst_points:toTuples(floorPlanPoints)})});
+      if(seq!==liveMetricsSeq) return;
+      if(!r.ok){ if(wrap) wrap.classList.add('hidden'); return; }
+      const j=await r.json();
+      if(seq!==liveMetricsSeq) return;
+      if(currentStep!==1) return;
+      if(qEl) qEl.innerHTML=qualityHTML(j.metrics);
+      if(chipsEl){
+        const errs=(j.metrics&&j.metrics.per_point_error)||[];
+        const n=Math.max(cameraPoints.length,floorPlanPoints.length);
+        let html='';
+        for(let i=0;i<n;i++){
+          const err=i<errs.length?errs[i]:null;
+          const color=pairColor(err);
+          const cp=cameraPoints[i], fp=floorPlanPoints[i];
+          const missing=!cp||!fp;
+          const tip=`คู่ที่ ${i}: cam (${cp?cp.x.toFixed(1):'-'}, ${cp?cp.y.toFixed(1):'-'}) → floor (${fp?fp.x.toFixed(1):'-'}, ${fp?fp.y.toFixed(1):'-'}) err ${pairLabel(err)}${missing?' — จุดไม่ครบ':''}`;
+          html+=`<span class="pair-chip"${missing?' style="opacity:.55"':''} title="${escHtml(tip)}">`
+            + `<span class="pair-dot" style="background:${color}"></span>#${i} ${pairLabel(err)}`
+            + `<button type="button" class="pair-x" data-del-pair="${i}" title="ลบจุดคู่ที่ ${i}">×</button></span>`;
+        }
+        chipsEl.innerHTML=html;
+      }
+      if(wrap) wrap.classList.remove('hidden');
+    }catch{ if(wrap) wrap.classList.add('hidden'); }
+  }
+  function deletePair(i){
+    if(i<0||i>=cameraPoints.length||i>=floorPlanPoints.length) return;
+    floorHistory.push([...floorPlanPoints]); floorFuture=[];
+    camHistory.push([...cameraPoints]); camFuture=[];
+    floorPlanPoints.splice(i,1); cameraPoints.splice(i,1);
+    updateFloor(); updateCam();
+  }
+  document.getElementById('pair-chips')?.addEventListener('click', e=>{
+    const b=e.target.closest('[data-del-pair]');
+    if(b) deletePair(parseInt(b.dataset.delPair,10));
+  });
+
+  // Save configuration
+  // Save; true when everything it set out to save was saved.
+  async function saveCalibration(){
+    if(!cameraPoints||cameraPoints.length<4||!floorPlanPoints||floorPlanPoints.length<4){
+      ToastManager.error('Set at least 4 pairs of points before saving'); return false;
+    }
+    if(cameraPoints.length!==floorPlanPoints.length){
+      ToastManager.error('The floor plan and the camera need the same number of points'); return false;
+    }
+    const sel=getSelectedCamera();
+    if(!sel||!floorplan) { ToastManager.error('Select a camera first'); return false; }
+    btnSaveConfig.disabled=true; const orig=btnSaveConfig.innerHTML; btnSaveConfig.textContent='Saving...';
+    try{
+      const payload={floorplanId: floorplan.id, cameraIp: sel.ip, cameraChannel: Number(sel.channel), cameraName: sel.name||sel.ip, srcPoints: toTuples(cameraPoints), dstPoints: toTuples(floorPlanPoints), roiZones: zones.filter(z=>z.points.length>=3)};
+      let targetId=calibrationId;
+      if(!targetId){
+        const res=await fetch(`${API_BASE}/floorplan/${floorplan.id}/cameras`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        if(!res.ok){ const t=await res.text(); throw new Error(t); }
+        const j=await res.json(); targetId=j.id;
+        calibrationId=targetId;
+        dbCameras.push({id:targetId, floorplanId: floorplan.id, cameraIp: sel.ip, cameraChannel: sel.channel, cameraName: sel.name, srcPoints: payload.srcPoints, dstPoints: payload.dstPoints, matrix:null, roiZones: payload.roiZones});
+        /* created — one toast below covers the whole save */
+      } else {
+        const res=await fetch(`${API_BASE}/floorplan/cameras/${targetId}/points`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
+        if(!res.ok) throw new Error('update points failed');
+        dbCameras=dbCameras.map(c=> c.id===targetId ? {...c, srcPoints: payload.srcPoints, dstPoints: payload.dstPoints, roiZones: payload.roiZones} : c);
+        /* updated — one toast below covers the whole save */
+      }
+      const calRes=await fetch(`${API_BASE}/floorplan/cameras/${targetId}/calibrate`, {method:'POST'});
+      const calJson=await calRes.json().catch(()=>null);
+      if(!calRes.ok){ throw new Error((calJson&&calJson.detail)||'calibrate failed'); }
+      if(calJson && calJson.matrix){
+        savedCal={matrix:calJson.matrix, src:toTuples(cameraPoints), dst:toTuples(floorPlanPoints)};
+        dbCameras=dbCameras.map(c=> c.id===targetId ? {...c, matrix:calJson.matrix} : c);
+      }
+      if(hzDirty){
+        const hzRes=await fetch(`${API_BASE}/floorplan/cameras/${targetId}/hotzone-floor`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({hotzoneFloor:hzPayload()})});
+        if(!hzRes.ok){ const j=await hzRes.json().catch(()=>({})); throw new Error(j.detail || 'saving the hot zones failed'); }
+        hzSavedRaw=hzPayload().map(z=>({zone_id:z.zoneId, type:z.type, name:z.name, camera_points:z.cameraPoints, floor_points:z.floorPoints}));
+        dbCameras=dbCameras.map(c=> c.id===targetId ? {...c, hotzoneFloor:hzSavedRaw} : c);
+        hzDirty=false;
+      }
+      if(mode==='hz'){ renderHotzoneList(); renderValSvgs(); }
+      clearPending(floorplan.id, sel);
+      hasUnsavedChanges=false;
+      ToastManager.success('Calibration saved successfully');
+      updateStepper();
+      return true;
+    }catch(err){
+      console.error(err); ToastManager.error('Could not save the calibration', err.message);
+      return false;
+    }finally{ btnSaveConfig.disabled=false; btnSaveConfig.innerHTML=orig; }
+  }
+  btnSaveConfig.addEventListener('click', ()=>{ saveCalibration(); });
+
+  // ---------------- Zoom ----------------
+  // Each picture sits in a scrolling frame; zooming makes the canvas itself bigger, so
+  // points, corners, the loupe and every click keep being measured on the canvas as
+  // before (the resize observers redraw them). Ctrl/⌘ + wheel or a trackpad pinch zooms
+  // at the pointer; scrolling moves around.
+  const ZOOM_MIN=1, ZOOM_MAX=8, ZOOM_STEPS=[1, 1.5, 2, 3, 4, 6, 8];
+  // ⤢ arrows out to open full screen; the same arrows pointing in to close it.
+  const ICON_EXPAND='<svg viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
+  const ICON_SHRINK='<svg viewBox="0 0 24 24"><path d="M14 4v6h6M10 20v-6H4M14 10l7-7M3 21l7-7"/></svg>';
+  var zoomFrames=[];   // var: updateStepper may ask before this line has run
+  function setupZoom(container, dark){
+    const frame=document.createElement('div'); frame.className='cal-zoom-frame';
+    const view=document.createElement('div'); view.className='cal-zoom'+(dark?' is-dark':'');
+    container.parentNode.insertBefore(frame, container);
+    view.appendChild(container); frame.appendChild(view);
+    const ctl=document.createElement('div'); ctl.className='cal-zoom-ctl';
+    ctl.innerHTML='<button type="button" data-z="out" title="Zoom out"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>'
+      + '<button type="button" class="lvl" data-z="fit" title="Back to the whole picture">100%</button>'
+      + '<button type="button" data-z="in" title="Zoom in (or Ctrl/⌘ + scroll)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>'
+      + `<button type="button" data-z="full" title="Full screen (Esc to close)">${ICON_EXPAND}</button>`;
+    frame.appendChild(ctl);
+    let z=1;
+    function apply(nz, ax, ay){
+      nz=Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, nz));
+      const r=view.getBoundingClientRect();
+      if(ax===undefined){ ax=r.width/2; ay=r.height/2; }
+      // keep the spot under the pointer (or the middle) where it is
+      const cx=(view.scrollLeft+ax)/z, cy=(view.scrollTop+ay)/z;
+      z=nz;
+      container.style.width=(z*100)+'%';
+      // Full screen: the frame is the screen's shape, so the canvas fills it both ways.
+      container.style.height=frame.classList.contains('is-full') ? (z*100)+'%' : '';
+      view.scrollLeft=cx*z-ax; view.scrollTop=cy*z-ay;
+      ctl.querySelector('.lvl').textContent=Math.round(z*100)+'%';
+      ctl.querySelector('[data-z="out"]').disabled=z<=ZOOM_MIN;
+      ctl.querySelector('[data-z="in"]').disabled=z>=ZOOM_MAX;
+    }
+    ctl.addEventListener('click', e=>{
+      const b=e.target.closest('button'); if(!b) return;
+      const k=b.dataset.z;
+      if(k==='in') apply(ZOOM_STEPS.find(s=>s>z+1e-6) ?? ZOOM_MAX);
+      else if(k==='out') apply([...ZOOM_STEPS].reverse().find(s=>s<z-1e-6) ?? ZOOM_MIN);
+      else if(k==='fit') apply(1);
+      else if(k==='full') setFull(!frame.classList.contains('is-full'));
+    });
+    view.addEventListener('wheel', e=>{
+      if(!(e.ctrlKey || e.metaKey)) return;     // plain scrolling pans
+      e.preventDefault();
+      const r=view.getBoundingClientRect();
+      apply(z*Math.exp(-e.deltaY*0.01), e.clientX-r.left, e.clientY-r.top);
+    }, {passive:false});
+    // Full screen for this picture only (the one whose button was pressed).
+    function setFull(on){
+      if(on) zoomFrames.forEach(f=>{ if(f.frame!==frame && f.isFull()) f.setFull(false); });
+      frame.classList.toggle('is-full', on);
+      document.body.classList.toggle('cal-full-open', zoomFrames.some(f=>f.isFull()) || on);
+      const fb=ctl.querySelector('[data-z="full"]');
+      fb.classList.toggle('is-on', on);
+      fb.title = on ? 'Close full screen (Esc)' : 'Full screen (Esc to close)';
+      fb.innerHTML = on ? ICON_SHRINK : ICON_EXPAND;
+      apply(z);
+    }
+    apply(1);
+    zoomFrames.push({frame, container, apply, setFull, isFull:()=>frame.classList.contains('is-full'), get zoom(){ return z; }});
+  }
+  document.addEventListener('keydown', e=>{
+    if(e.key!=='Escape') return;
+    zoomFrames.forEach(f=>{ if(f.isFull()) f.setFull(false); });
+  });
+  setupZoom(floorContainer, false);
+  setupZoom(camContainer, true);
+  setupZoom(valFloorContainer, false);
+  setupZoom(valCamContainer, true);
+  // A full-screen picture of a step that is no longer shown closes with it.
+  function closeFullScreen(){ (zoomFrames || []).forEach(f=>{ if(f.isFull()) f.setFull(false); }); }
+
+  // Resize observers
+  function setupResize(){
+    const ro1=new ResizeObserver(()=>{ floorImgRect=computeFloorRect(); renderFloor(); });
+    if(floorContainer) ro1.observe(floorContainer);
+    const ro2=new ResizeObserver(()=>{ camImgRect=computeCamRect(); renderCam(); });
+    if(camContainer) ro2.observe(camContainer);
+    const ro3=new ResizeObserver(()=>{ valFloorImgRect=computeValFloorRect(); valCamImgRect=computeValCamRect(); renderValSvgs(); });
+    if(valFloorContainer) ro3.observe(valFloorContainer);
+    if(valCamContainer) ro3.observe(valCamContainer);
+    window.addEventListener('resize', ()=>{
+      floorImgRect=computeFloorRect(); camImgRect=computeCamRect(); valFloorImgRect=computeValFloorRect(); valCamImgRect=computeValCamRect();
+      renderFloor(); renderCam(); renderValSvgs();
+    });
+  }
+
+  // Init load
+  async function applyCalibrationForCamera(cam, fpId, cached){
+    const reqId=++fetchRequestId; 
+    isLoadingPoints=true;
+    targetPoint=null;
+    cameraPoints=[]; floorPlanPoints=[]; calibrationId=null;
+    { const lm=document.getElementById('live-metrics'); if(lm) lm.classList.add('hidden'); }
+    zones=[{id:'zone-1', name:'Zone 1', color:ZONE_PALETTE[0], points:[]}]; activeZoneId='zone-1';
+    hzReset([]); savedCal=null;
+    floorHistory=[]; floorFuture=[]; camHistory=[]; camFuture=[];
+    camImgRect=null;
+    if(currentStep===2){ currentStep=1; mode='test'; }
+    renderFloor(); renderCam(); renderValSvgs(); renderZoneList(); updateStepper();
+    const camLoadingEl=document.getElementById('cam-loading');
+    const floorLoadingEl=document.getElementById('floor-loading');
+    if(camLoadingEl) camLoadingEl.classList.remove('hidden');
+    if(floorLoadingEl) floorLoadingEl.classList.remove('hidden');
+    if(transformErrorEl) transformErrorEl.classList.add('hidden');
+    if(valFloorTarget) valFloorTarget.classList.add('hidden');
+    if(valCamTarget) valCamTarget.classList.add('hidden');
+    try{
+      let calData = cached.find(c=> isSameCal(c,cam)) || null;
+      if(!calData){
+        const pending=loadPending(fpId, cam);
+        if(pending && pending.srcPoints.length>0 && pending.dstPoints.length>0){
+          calData={id:null, srcPoints: toTuples(pending.srcPoints), dstPoints: toTuples(pending.dstPoints), roiZones: []};
+        }
+      }
+      if(!calData){
+        try{
+          const res=await fetch(`${API_BASE}/floorplan/${fpId}/cameras?ip=${encodeURIComponent(cam.ip)}&channel=${cam.channel}`);
+          if(res.ok){
+            const text=await res.text();
+            calData = text ? JSON.parse(text) : null;
+          }
+        }catch{ calData=null; }
+      }
+      if(reqId!==fetchRequestId) return;
+      if(calData){
+        const srcRaw=getCalSrc(calData) ?? calData.srcPoints;
+        const dstRaw=getCalDst(calData) ?? calData.dstPoints;
+        const src=normalizePoints(srcRaw);
+        const dst=normalizePoints(dstRaw);
+        calibrationId = calData.id || null;
+        cameraPoints = src;
+        floorPlanPoints = dst;
+        savedCal = (calibrationId && calData.matrix) ? {matrix:calData.matrix, src:toTuples(src), dst:toTuples(dst)} : null;
+        hzReset(calData.hotzoneFloor ?? calData.hotzone_floor ?? []);
+        let loadedZones = null;
+        if(calData.roiZones && Array.isArray(calData.roiZones) && calData.roiZones.length>0){
+          loadedZones = calData.roiZones;
+        } else if(calibrationId){
+          try{
+            const r2=await fetch(`${API_BASE}/floorplan/cameras/${calibrationId}`);
+            if(reqId!==fetchRequestId) return;
+            if(r2.ok){
+              const d2=await r2.json();
+              if(d2.roiZones && Array.isArray(d2.roiZones) && d2.roiZones.length>0){
+                loadedZones = d2.roiZones;
+              }
+            }
+          }catch{}
+        }
+        if(loadedZones && loadedZones.length>0){
+          zones = loadedZones.map((z,idx)=> ({...z, color: ZONE_PALETTE[idx%ZONE_PALETTE.length]}));
+          activeZoneId = zones[0].id;
+        } else {
+          zones=[{id:'zone-1', name:'Zone 1', color:ZONE_PALETTE[0], points:[]}]; activeZoneId='zone-1';
+        }
+        renderZoneList();
+      } else {
+        calibrationId=null; cameraPoints=[]; floorPlanPoints=[];
+        zones=[{id:'zone-1', name:'Zone 1', color:ZONE_PALETTE[0], points:[]}]; activeZoneId='zone-1'; renderZoneList();
+      }
+      hasUnsavedChanges=false;
+      floorHistory=[]; floorFuture=[]; camHistory=[]; camFuture=[];
+      renderFloor(); renderCam(); renderValSvgs(); updateStepper();
+      if(reqId===fetchRequestId){ scheduleLiveMetrics(); }
+    }catch(err){
+      console.error(err);
+      if(reqId===fetchRequestId){ 
+        calibrationId=null; cameraPoints=[]; floorPlanPoints=[]; 
+        zones=[{id:'zone-1', name:'Zone 1', color:ZONE_PALETTE[0], points:[]}]; activeZoneId='zone-1';
+        renderFloor(); renderCam(); renderZoneList(); 
+      }
+    }finally{
+      if(reqId===fetchRequestId){
+        isLoadingPoints=false;
+        if(camLoadingEl) camLoadingEl.classList.add('hidden');
+        if(floorLoadingEl) floorLoadingEl.classList.add('hidden');
+        renderFloor(); renderCam();
+        const sel=getSelectedCamera();
+        if(sel && camImage && camImage.src!==_camPics.get(camPicKey(sel))) showCamPicture(sel);
+        hzOpenIfAsked();
+      }
+    }
+  }
+
+  function handleSelectCamera(cam){
+    selectedCamKey=`${cam.ip}_${cam.channel}`;
+    camDropdown.hidden = true; netDropdown.hidden = true;
+    renderCam();
+    if(floorplan) applyCalibrationForCamera(cam, floorplan.id, dbCameras);
+    updateStepper();
+    showCamPicture(cam);
+    // val cam image will be set on step2
+  }
+
+  function selectedCam(){
+    return channels.find(c=> `${c.ip}_${c.channel}` === selectedCamKey) || null;
+  }
+  function currentNetwork(){
+    const sel = selectedCam();
+    return sel ? sel.name : (channels[0] ? channels[0].name : null);
+  }
+  function renderNetDropdown(){
+    netDropdown.innerHTML='';
+    const nets=[...new Set(channels.map(c=>c.name))];
+    if(nets.length===0){
+      netDropdown.innerHTML='<p style="padding:10px;font-size:13px;color:#8a8a8a;">No networks found</p>';
+      return;
+    }
+    nets.forEach(n=>{
+      const b=document.createElement('button');
+      b.textContent=n;
+      if(n===currentNetwork()) b.className='is-selected';
+      b.addEventListener('click', ()=>{
+        netDropdown.hidden=true;
+        const first=channels.find(c=>c.name===n);
+        if(first) pickCamera(first);
+      });
+      netDropdown.appendChild(b);
+    });
+  }
+  function renderCamDropdown(){
+    camDropdown.innerHTML='';
+    if(channels.length===0){
+      camDropdown.innerHTML='<p style="padding:10px;font-size:13px;color:#8a8a8a;">No cameras yet — select cameras in Camera Network first</p>';
+      renderNetDropdown();
+      return;
+    }
+    const net=currentNetwork();
+    channels.filter(c=>c.name===net).forEach(cam=>{
+      const isSel = selectedCamKey===`${cam.ip}_${cam.channel}`;
+      const b=document.createElement('button');
+      b.textContent=camLabel(cam);
+      if(isSel) b.className='is-selected';
+      b.addEventListener('click', ()=>{ camDropdown.hidden=true; if(!isSel) pickCamera(cam); });
+      camDropdown.appendChild(b);
+    });
+    renderNetDropdown();
+  }
+
+  async function initLoad(){
+    try{
+      const [fpData, camChannels] = await Promise.all([
+        fetch(`${API_BASE}/floorplan/${floorplanId}`, {headers:{'Accept':'application/json'}}).then(r=>{
+          if(!r.ok) throw new Error('floorplan not found');
+          return r.json();
+        }),
+        fetch(`${API_BASE}/cameras/channels`).then(r=>{
+          if(!r.ok) return [];
+          return r.json();
+        }).catch(()=>[])
+      ]);
+      // filter channels status 1
+      const selected = (camChannels||[]).filter(c=> c.status===1).map((c,idx)=> ({
+        ip: c.ip, name: c.network_name || c.ip, channel: c.channel, status: c.status
+      }));
+      channels=selected;
+      renderCamDropdown();
+      // Which cameras have hot zones (for the camera list and Calibrate Hot Zone);
+      // not waited for, the page works without it.
+      hzFetchZoneArea(null).then(()=>renderCam()).catch(()=>{});
+
+      floorplan = {id: fpData.id, name: fpData.name, imageUrl: getFullImageUrl(fpData.imageUrl || fpData.image_url || '')};
+      floorNameBadge.textContent = floorplan.name;
+      valFloorTitle.textContent = floorplan.name;
+      floorImage.src = floorplan.imageUrl;
+      valFloorImage.src = floorplan.imageUrl;
+      floorImage.onload = ()=>{ floorImgRect=computeFloorRect(); renderFloor(); };
+      floorImage.onerror = ()=>{ floorImgRect=null; };
+      valFloorImage.onload = ()=>{ valFloorImgRect=computeValFloorRect(); renderValSvgs(); };
+      dbCameras = fpData.cameras || [];
+
+      if(channels.length>0){
+        let target=channels[0];
+        if(dbCameras.length>0){
+          const first=dbCameras[0];
+          const found=channels.find(c=> c.ip===getCalIp(first) && String(c.channel)===String(getCalChannel(first)));
+          if(found) target=found;
+        }
+        selectedCamKey=`${target.ip}_${target.channel}`;
+        renderCam();
+        await applyCalibrationForCamera(target, floorplan.id, dbCameras);
+        showCamPicture(target);
+      } else {
+        renderCam();
+      }
+
+      loadingInit.classList.add('hidden');
+      mainWorkspace.classList.remove('hidden');
+      setupResize();
+      renderFloor(); renderCam(); updateStepper(); renderZoneList();
+      // compute initial rects
+      setTimeout(()=>{ floorImgRect=computeFloorRect(); camImgRect=computeCamRect(); valFloorImgRect=computeValFloorRect(); valCamImgRect=computeValCamRect(); renderFloor(); renderCam(); renderValSvgs(); }, 300);
+    }catch(err){
+      console.error(err);
+      loadingInit.classList.add('hidden');
+      errorInit.classList.remove('hidden');
+      errorInitText.textContent = String(err.message||err);
+    }
+  }
+
+  initLoad();
+})();
+</script>
+{% endblock %}

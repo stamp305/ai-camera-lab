@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Account setup - AI Camera{% endblock %}
+
+{% block body %}
+<!-- Loading State -->
+<div id="page-loading" class="auth-shell">
+    <div class="spinner spinner-lg"></div>
+</div>
+
+<!-- Setup Form: same look as the sign-in page (styles.css "Auth pages"). -->
+<div id="setup-form-container" class="hidden" style="display:none;">
+    <div class="auth-shell">
+        <div class="auth-card">
+            <h1 class="auth-title">Set your username and password</h1>
+            <p class="auth-hint">Use these to sign in from now on.</p>
+            <form id="form-setup" novalidate>
+                <div class="auth-field">
+                    <label class="auth-label" for="username">Username</label>
+                    <input class="auth-input" type="text" id="username" name="username" placeholder="Username" required autocomplete="username" autocapitalize="none" autocorrect="off">
+                </div>
+                <div class="auth-field">
+                    <label class="auth-label" for="password">New password</label>
+                    <div class="auth-input-wrap">
+                        <input class="auth-input" type="password" id="password" name="password" placeholder="New password" required minlength="4" autocomplete="new-password">
+                        <button type="button" class="auth-reveal" data-reveal="password" aria-label="Show password"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                    </div>
+                </div>
+                <div class="auth-field">
+                    <label class="auth-label" for="confirm-password">Confirm password</label>
+                    <div class="auth-input-wrap">
+                        <input class="auth-input" type="password" id="confirm-password" name="confirm-password" placeholder="Confirm password" required minlength="4" autocomplete="new-password">
+                        <button type="button" class="auth-reveal" data-reveal="confirm-password" aria-label="Show password"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                    </div>
+                    <p class="auth-error" id="setup-error"></p>
+                </div>
+                <button type="submit" class="auth-submit" id="btn-submit">
+                    Save
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(async function() {
+    const loading = document.getElementById('page-loading');
+    const formContainer = document.getElementById('setup-form-container');
+
+    // Check auth
+    const rawData = sessionStorage.getItem('userData');
+    if (!rawData) {
+        window.location.href = appUrl('/login');
+        return;
+    }
+
+    const userData = JSON.parse(rawData);
+    if (userData.credentials_changed) {
+        if (!userData.is_activated) {
+            window.location.href = appUrl('/activation');
+        } else {
+            window.location.href = appUrl('/landing');
+        }
+        return;
+    }
+
+    // Show form
+    loading.classList.add('hidden');
+    formContainer.style.display = 'block';
+    formContainer.classList.remove('hidden');
+
+    // Form submission
+    const form = document.getElementById('form-setup');
+    const btnSubmit = document.getElementById('btn-submit');
+    const inputUsername = document.getElementById('username');
+    const inputPassword = document.getElementById('password');
+    const inputConfirm = document.getElementById('confirm-password');
+    const errorEl = document.getElementById('setup-error');
+
+    // Reveal buttons: same behaviour as the sign-in page — only the input type flips.
+    const EYE_OPEN = '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>';
+    const EYE_OFF = '<path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c6.5 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.53 13.53 0 0 0 2 12s3.5 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/>';
+    document.querySelectorAll('[data-reveal]').forEach(btn => btn.addEventListener('click', () => {
+        const input = document.getElementById(btn.dataset.reveal);
+        const showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        btn.querySelector('svg').innerHTML = showing ? EYE_OPEN : EYE_OFF;
+        btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        input.focus();
+    }));
+
+    const MISMATCH = 'Passwords do not match';
+    function showError(msg) {
+        errorEl.textContent = msg;
+        inputPassword.style.borderColor = 'var(--destructive)';
+        inputConfirm.style.borderColor = 'var(--destructive)';
+        if (msg !== MISMATCH) {
+            inputUsername.style.borderColor = 'var(--destructive)';
+        }
+    }
+
+    function clearError() {
+        errorEl.textContent = '';
+        inputUsername.style.borderColor = '';
+        inputPassword.style.borderColor = '';
+        inputConfirm.style.borderColor = '';
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        clearError();
+
+        const username = inputUsername.value.trim();
+        const password = inputPassword.value;
+        const confirmPassword = inputConfirm.value;
+
+        if (!username || !password || !confirmPassword) {
+            showError('Please fill in every field');
+            return;
+        }
+        if (password !== confirmPassword) {
+            showError(MISMATCH);
+            return;
+        }
+        if (password.length < 4) {
+            showError('Password must be at least 4 characters');
+            return;
+        }
+
+        // Disable UI
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = '<div class="spinner spinner-sm spinner-light"></div> Saving...';
+
+        try {
+            const response = await fetch(`${getApiUrl()}/users/change-username-password`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.detail || 'An unknown error occurred.');
+            }
+
+            // Success: update storage and move on (relative path, never hardcode host:port).
+            // Not yet activated goes to /activation directly — via /landing it would
+            // show the sidebar for an instant before requireAuth bounced it there.
+            let activated = true;
+            let rawData = sessionStorage.getItem('userData');
+            if (rawData) {
+                let userData = JSON.parse(rawData);
+                userData.credentials_changed = true;
+                activated = !!userData.is_activated;
+                sessionStorage.setItem('userData', JSON.stringify(userData));
+            }
+            window.location.replace(appUrl(activated ? '/landing' : '/activation'));
+
+        } catch (error) {
+            console.error('Setup failed:', error);
+            showError(error.message || 'An unexpected error occurred.');
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = 'Save';
+        }
+    });
+})();
+</script>
+{% endblock %}

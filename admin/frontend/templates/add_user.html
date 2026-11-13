@@ -1,0 +1,128 @@
+<!-- templates/add_user.html -->
+
+{% extends "base.html" %}
+
+{% block title %}Add New User - AI Camera{% endblock %}
+
+{% block content %}
+<header class="main-header">
+    <div>
+        <h1>เพิ่มผู้ใช้ใหม่</h1>
+        <p>กรอกข้อมูลด้านล่างเพื่อเพิ่มผู้ใช้เข้าสู่ระบบ</p>
+    </div>
+</header>
+
+<div class="card form-card">
+    <form id="add-user-form">
+        <div class="card-content" style="padding: 24px;">
+            <!-- Group Selection -->
+            <div class="form-group">
+                <label>กลุ่มผู้ใช้</label>
+                <div class="radio-group">
+                    <input type="radio" id="select-existing" name="group_selection" value="existing" checked>
+                    <label for="select-existing" class="radio-label">เลือกกลุ่มที่มีอยู่</label>
+                    <input type="radio" id="select-new" name="group_selection" value="new">
+                    <label for="select-new" class="radio-label">สร้างกลุ่มใหม่</label>
+                </div>
+            </div>
+
+            <!-- Dynamic Group Inputs -->
+            <div id="existing-group-container" class="form-group">
+                <label for="group_select">เลือกกลุ่ม</label>
+                <select id="group_select" name="group_select" required>
+                    <option value="">กำลังโหลดกลุ่ม...</option>
+                </select>
+            </div>
+            <div id="new-group-container" class="form-group hidden">
+                <label for="new_group_name">ชื่อกลุ่มใหม่</label>
+                <input type="text" id="new_group_name" name="new_group_name" placeholder="e.g., Factory D">
+            </div>
+
+            <hr class="form-divider">
+
+            <!-- User Details -->
+            <!-- <div class="form-group">
+                <label for="activation_code">Activation Code</label>
+                <input type="text" id="activation_code" name="activation_code" placeholder="e.g., AC-01-001" required>
+            </div> -->
+            <div class="form-group">
+                <label for="activation_code">Activation Code</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <input type="text" id="activation_code" name="activation_code" placeholder="e.g., AC-01-001"
+                        required style="flex:1;">
+                    <button type="button" id="generate-activation-code" class="btn btn-secondary"
+                        style="white-space:nowrap;">Generate</button>
+                </div>
+                <small id="activation-code-error" class="form-error-message hidden"></small>
+            </div>
+            <div class="form-group">
+                <label for="serial_number">Serial Number</label>
+                <!-- pattern เดียวกับที่ backend ตรวจ (user_schemas._SERIAL_RE) ให้คน
+                     กรอกเห็นผลทันที ส่วนด่านจริงยังอยู่ที่ backend เพราะยิง API
+                     ตรงก็ข้ามหน้านี้ได้ -->
+                <input type="text" id="serial_number" name="serial_number"
+                       placeholder="ตัวอักษร+ตัวเลข 10 หรือ 12 ตัว"
+                       pattern="[A-Za-z0-9]{10}|[A-Za-z0-9]{12}"
+                       title="ซีเรียลเครื่อง Mac: ตัวอักษรกับตัวเลขล้วน ยาว 10 หรือ 12 ตัว ไม่มีขีดและไม่มีเว้นวรรค (ดูได้จาก  > About This Mac)"
+                       required>
+                <small id="serial-number-error" class="form-error-message hidden"></small>
+            </div>
+            <div class="form-group">
+                <label for="mac_address">MAC Address</label>
+                <!-- pattern เดียวกับ backend (user_schemas._MAC_RE) -->
+                <input type="text" id="mac_address" name="mac_address" placeholder="XX:XX:XX:XX:XX:XX"
+                       pattern="[0-9A-Fa-f]{2}([:\-][0-9A-Fa-f]{2}){5}"
+                       title="เลขฐานสิบหก 6 ชุด (0-9, A-F) คั่นด้วย : หรือ - เช่น XX:XX:XX:XX:XX:XX"
+                       required>
+                <small id="mac-address-error" class="form-error-message hidden"></small>
+            </div>
+            <div class="form-group">
+                <label for="branch_name">ชื่อสาขา (Branch Name)</label>
+                <input type="text" id="branch_name" name="branch_name" placeholder="e.g., สาขาบางนา">
+            </div>
+        </div>
+        <div class="card-footer">
+            <button type="submit" class="btn btn-primary">บันทึกข้อมูล</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('ai_camera.static', filename='js/add_user.js') }}"></script>
+<script>
+    // Lightweight inline handler for generating activation code
+    (() => {
+        const btn = document.getElementById('generate-activation-code');
+        const input = document.getElementById('activation_code');
+        const errorEl = document.getElementById('activation-code-error');
+        if (!btn || !input) return;
+        async function generate() {
+            errorEl?.classList.add('hidden');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = '...';
+            try {
+                // Use frontend proxy route to avoid direct cross-origin / host assumptions
+                const res = await fetch('/ai-camera/api/activation-code');
+                if (!res.ok) throw new Error('Server responded ' + res.status);
+                const data = await res.json();
+                if (!data.activation_code) throw new Error('Invalid response');
+                input.value = data.activation_code;
+                input.dispatchEvent(new Event('input')); // trigger any listeners/validation
+            } catch (e) {
+                if (errorEl) {
+                    errorEl.textContent = 'Failed to generate code: ' + (e.message || e);
+                    errorEl.classList.remove('hidden');
+                } else {
+                    console.error(e);
+                }
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+        btn.addEventListener('click', generate);
+    })();
+</script>
+{% endblock %}

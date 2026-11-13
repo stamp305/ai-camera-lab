@@ -1,0 +1,332 @@
+{% extends "layout_navbar.html" %}
+{% block title %}Camera Network - AI Camera{% endblock %}
+{% block crumb_parent %}Camera &amp; Network{% endblock %}
+{% block crumb_current %}Camera Network{% endblock %}
+
+{% block content %}
+<div class="ac-page">
+    <div class="ac-page-head">
+        <h1 class="ac-page-title">Camera Network</h1>
+        <p class="ac-page-sub">Add, edit or remove your camera network</p>
+    </div>
+
+    <div class="ac-tabs">
+        <a class="ac-tab is-active" href="/networks">Camera Network</a>
+        <a class="ac-tab" href="/selector">Camera Selection</a>
+    </div>
+
+    <div style="display:flex;gap:16px;margin-bottom:20px;">
+        <label class="ac-search">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+            <input id="search" class="ac-input" type="text" placeholder="Search">
+        </label>
+        <button id="btn-add" class="ac-btn ac-btn-dark ac-btn-lg">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add Network
+        </button>
+    </div>
+
+    <div id="loading" class="ac-empty"><div class="ac-spinner"></div></div>
+
+    <div id="empty" class="ac-empty ac-hidden">
+        <div class="ac-empty-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+        <h3 id="empty-title">No camera networks</h3>
+        <p id="empty-text">Camera networks will show up here, along with their connection status and available cameras.</p>
+        <button id="btn-empty-add" class="ac-btn ac-btn-sm">Add Network</button>
+    </div>
+
+    <div id="list" class="ac-card ac-hidden" style="padding:8px 24px;"></div>
+</div>
+
+<!-- Create network -->
+<div id="modal-create" class="ac-modal" hidden>
+    <div class="ac-modal-box">
+        <div class="ac-modal-head"><h2>Create network</h2></div>
+        <!-- autocomplete=off: these are the camera's credentials, not the operator's login;
+             without it the browser offers to save them into the password manager. -->
+        <form id="form-create" class="ac-modal-body" autocomplete="off">
+            <div class="ac-field">
+                <label class="ac-label" for="c-name">Network name</label>
+                <input class="ac-input" id="c-name" placeholder="Network name" required>
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="c-ip">IP Address</label>
+                <input class="ac-input" id="c-ip" placeholder="IP Address" required>
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="c-user">Username</label>
+                <input class="ac-input" id="c-user" placeholder="Username" name="camera-username" autocomplete="off" required>
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="c-pass">Password</label>
+                <div class="ac-input-wrap">
+                    <input class="ac-input" id="c-pass" type="password" placeholder="Password" name="camera-password" autocomplete="new-password" required>
+                    <button type="button" class="ac-input-icon" id="toggle-pass" title="Show password">
+                        <svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2M6.6 6.6A13.4 13.4 0 0 0 2 12c1 2.5 5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="ac-field" style="margin-bottom:0;">
+                <label class="ac-label" for="c-channels">Number of channels</label>
+                <select class="ac-input" id="c-channels">
+                    <option value="8">8 channels</option>
+                    <option value="16" selected>16 channels (default)</option>
+                    <option value="32">32 channels</option>
+                </select>
+            </div>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" data-close="modal-create">Cancel</button>
+                <button type="submit" class="ac-btn ac-btn-dark ac-btn-lg">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit network -->
+<div id="modal-edit" class="ac-modal" hidden>
+    <div class="ac-modal-box">
+        <div class="ac-modal-head"><h2>Edit network</h2></div>
+        <form id="form-edit" class="ac-modal-body" autocomplete="off">
+            <div class="ac-field">
+                <label class="ac-label" for="e-name">Network name</label>
+                <input class="ac-input" id="e-name" required>
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="e-ip">IP Address</label>
+                <input class="ac-input" id="e-ip" required>
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="e-user">Username</label>
+                <input class="ac-input" id="e-user" placeholder="Username" name="camera-username" autocomplete="off" required>
+            </div>
+            <div class="ac-field">
+                <label class="ac-label" for="e-pass">Password</label>
+                <div class="ac-input-wrap">
+                    <input class="ac-input" id="e-pass" type="password" placeholder="Leave blank to keep the current password" name="camera-password" autocomplete="new-password">
+                    <button type="button" class="ac-input-icon" id="toggle-e-pass" title="Show password">
+                        <svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c5 0 9 4.5 10 7a13 13 0 0 1-3 4.2M6.6 6.6A13.4 13.4 0 0 0 2 12c1 2.5 5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/></svg>
+                    </button>
+                </div>
+            </div>
+            <div class="ac-field" style="margin-bottom:0;">
+                <label class="ac-label" for="e-channels">Number of channels</label>
+                <select class="ac-input" id="e-channels">
+                    <option value="8">8 channels</option>
+                    <option value="16" selected>16 channels (default)</option>
+                    <option value="32">32 channels</option>
+                </select>
+            </div>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" data-close="modal-edit">Cancel</button>
+                <button type="submit" class="ac-btn ac-btn-dark ac-btn-lg">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete network -->
+<div id="modal-delete" class="ac-modal" hidden>
+    <div class="ac-modal-box">
+        <div class="ac-modal-head"><h2 id="delete-title">Delete network?</h2></div>
+        <div class="ac-modal-body">
+            <p class="ac-modal-text" id="delete-text"></p>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" data-close="modal-delete">Cancel</button>
+                <button type="button" class="ac-btn ac-btn-danger ac-btn-lg" id="btn-confirm-delete">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function() {
+    const API = `${getApiUrl()}/cameras/configs`;
+    const esc = window.acEscape;
+    const $ = (id) => document.getElementById(id);
+
+    let networks = [];
+    let linkedCounts = {};
+    let editingId = null;
+    let deleting = null;
+
+    document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => acModal.close(b.dataset.close)));
+
+    function openCreate() {
+        $('form-create').reset();
+        $('c-pass').type = 'password';
+        acModal.open('modal-create');
+        $('c-name').focus();
+    }
+    $('btn-add').addEventListener('click', openCreate);
+    $('btn-empty-add').addEventListener('click', openCreate);
+    $('toggle-pass').addEventListener('click', () => {
+        $('c-pass').type = $('c-pass').type === 'password' ? 'text' : 'password';
+    });
+    $('toggle-e-pass').addEventListener('click', () => {
+        $('e-pass').type = $('e-pass').type === 'password' ? 'text' : 'password';
+    });
+    $('search').addEventListener('input', render);
+
+    async function load() {
+        try {
+            const [res, chRes] = await Promise.all([
+                fetch(API),
+                fetch(`${getApiUrl()}/cameras/channels?status=1`).catch(() => null),
+            ]);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            networks = await res.json();
+            linkedCounts = {};
+            if (chRes && chRes.ok) {
+                (await chRes.json()).forEach(c => {
+                    const key = `${c.ip}|${(c.network_name || '').toLowerCase()}`;
+                    linkedCounts[key] = (linkedCounts[key] || 0) + 1;
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            ToastManager.error('Could not load camera networks');
+            networks = [];
+        }
+        $('loading').classList.add('ac-hidden');
+        render();
+    }
+
+    function render() {
+        const q = $('search').value.trim().toLowerCase();
+        const rows = networks.filter(n => !q || [n.name, n.ip, n.username].some(v => String(v || '').toLowerCase().includes(q)));
+        const list = $('list');
+
+        if (rows.length === 0) {
+            list.classList.add('ac-hidden');
+            $('empty').classList.remove('ac-hidden');
+            const searching = networks.length > 0;
+            $('empty-title').textContent = searching ? 'No matching networks' : 'No camera networks';
+            $('empty-text').textContent = searching
+                ? 'Try a different name or IP address.'
+                : 'Camera networks will show up here, along with their connection status and available cameras.';
+            $('btn-empty-add').classList.toggle('ac-hidden', searching);
+            return;
+        }
+        $('empty').classList.add('ac-hidden');
+        list.classList.remove('ac-hidden');
+
+        list.innerHTML = rows.map((n, i) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 0;${i ? 'border-top:1px solid #e5e5e5;' : ''}">
+                <div>
+                    <div style="font-size:16px;font-weight:500;">${esc(n.name)}</div>
+                    <div style="margin-top:4px;font-size:14px;color:#5c5c5c;">${esc(n.username || '-')} · ${esc(n.ip)} · ${Number(n.channel_count) || 16} channels</div>
+                </div>
+                <div class="ac-pill-wrap">
+                    <button class="ac-kebab" data-menu="${n.id}" title="More">
+                        <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
+                    </button>
+                    <div class="ac-menu right" hidden style="min-width:160px;">
+                        <button data-edit="${n.id}"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Edit</button>
+                        <hr>
+                        <button class="danger" data-delete="${n.id}"><svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Delete</button>
+                    </div>
+                </div>
+            </div>`).join('');
+
+        list.querySelectorAll('[data-menu]').forEach(btn => btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const menu = btn.nextElementSibling;
+            document.querySelectorAll('.ac-menu').forEach(m => { if (m !== menu) m.hidden = true; });
+            menu.hidden = !menu.hidden;
+        }));
+        list.querySelectorAll('[data-edit]').forEach(btn => btn.addEventListener('click', () => {
+            const n = networks.find(x => String(x.id) === btn.dataset.edit);
+            editingId = n.id;
+            $('e-name').value = n.name;
+            $('e-ip').value = n.ip;
+            $('e-user').value = n.username || '';
+            $('e-pass').value = '';
+            $('e-pass').type = 'password';
+            $('e-channels').value = String(n.channel_count || 16);
+            btn.closest('.ac-menu').hidden = true;
+            acModal.open('modal-edit');
+        }));
+        list.querySelectorAll('[data-delete]').forEach(btn => btn.addEventListener('click', () => {
+            deleting = networks.find(x => String(x.id) === btn.dataset.delete);
+            const linked = linkedCounts[`${deleting.ip}|${(deleting.name || '').toLowerCase()}`] || 0;
+            $('delete-title').textContent = `Delete ${deleting.name}?`;
+            $('delete-text').textContent = linked
+                ? `This will disconnect ${linked} linked camera${linked > 1 ? 's' : ''} and stop all active AI analytics on this network. This action cannot be undone.`
+                : 'This network will be removed. This action cannot be undone.';
+            btn.closest('.ac-menu').hidden = true;
+            acModal.open('modal-delete');
+        }));
+    }
+
+    async function send(url, method, body) {
+        const res = await fetch(url, {
+            method,
+            headers: body ? { 'Content-Type': 'application/json' } : undefined,
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || err.message || `HTTP ${res.status}`);
+        }
+    }
+
+    $('form-create').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.submitter; btn.disabled = true;
+        try {
+            await send(API, 'POST', {
+                name: $('c-name').value.trim(),
+                ip: $('c-ip').value.trim(),
+                username: $('c-user').value,
+                password: $('c-pass').value,
+                channel_count: Number($('c-channels').value),
+            });
+            acModal.close('modal-create');
+            ToastManager.success('Network created');
+            load();
+        } catch (err) {
+            ToastManager.error('Could not create network', err.message);
+        } finally { btn.disabled = false; }
+    });
+
+    $('form-edit').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = e.submitter; btn.disabled = true;
+        try {
+            // An empty password keeps the stored one; the IP and credentials are
+            // checked against the NVR before anything is saved.
+            await send(`${API}/${editingId}`, 'PUT', {
+                name: $('e-name').value.trim(),
+                ip: $('e-ip').value.trim(),
+                username: $('e-user').value,
+                password: $('e-pass').value,
+                channel_count: Number($('e-channels').value),
+            });
+            acModal.close('modal-edit');
+            ToastManager.success('Network updated');
+
+            load();
+        } catch (err) {
+            ToastManager.error('Could not update network', err.message);
+        } finally { btn.disabled = false; }
+    });
+
+    $('btn-confirm-delete').addEventListener('click', async (e) => {
+        if (!deleting) return;
+        e.currentTarget.disabled = true;
+        try {
+            await send(`${API}/${deleting.id}`, 'DELETE');
+            acModal.close('modal-delete');
+            ToastManager.success('Network deleted');
+            load();
+        } catch (err) {
+            ToastManager.error('Could not delete network', err.message);
+        } finally { $('btn-confirm-delete').disabled = false; }
+    });
+
+    load();
+})();
+</script>
+{% endblock %}

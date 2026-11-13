@@ -1,0 +1,113 @@
+{% extends "layout_navbar.html" %}
+{% block title %}Traffic Detection - AI Camera{% endblock %}
+{% block crumb_parent %}Detection Setup{% endblock %}
+{% block crumb_current %}Traffic Detection{% endblock %}
+
+{% block content %}<div id="zone-editor"></div>{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="/static/js/shape_tools.js?v={{ range(1, 1000000) | random }}"></script>
+<script src="/static/js/zone_editor.js?v={{ range(1, 1000000) | random }}"></script>
+<script>
+(function() {
+    const DIRS = [
+        { value: 'up', label: 'Up', path: 'M12 19V5M5 12l7-7 7 7' },
+        { value: 'down', label: 'Down', path: 'M12 5v14M5 12l7 7 7-7' },
+        { value: 'left', label: 'Left', path: 'M19 12H5M12 5l-7 7 7 7' },
+        { value: 'right', label: 'Right', path: 'M5 12h14M12 5l7 7-7 7' },
+    ];
+    const SPEEDS = [['in-speed', 'in_speed', 'In_Speed'], ['out-speed', 'out_speed', 'Out_Speed'], ['pass-speed', 'pass_speed', 'Pass_Speed']];
+    let direction = null;
+    let savedSpeeds = null;   // last values loaded/saved for this camera — anything else is unsaved
+    const speedsNow = () => SPEEDS.map(([id]) => document.getElementById(id).value);
+
+    ZoneEditor.mount(document.getElementById('zone-editor'), {
+        title: 'Traffic Detection',
+        subtitle: 'Draw the entrance and walk-by areas, and set speed thresholds for each camera',
+        svc: 'in_pass_service',
+        serviceName: 'in-pass',
+        types: [{ value: 'in', label: 'Walk In' }, { value: 'pass', label: 'Walk Pass' }],
+        label: (p, i) => `Polygon ${i + 1}`,
+        tag: (p) => (p.type === 'in' ? 'Walk In' : 'Walk Pass'),
+        arrow: (p) => (DIRS.find(d => d.value === p.direction) || {}).path,
+
+        renderSide(side, api) {
+            side.innerHTML = `
+                <div id="dir-box" class="ac-hidden" style="margin-bottom:28px;">
+                    <h3 class="ac-card-title" style="margin-bottom:14px;">Direction</h3>
+                    <div class="ze-dirs">
+                        ${DIRS.map(d => `<button class="ac-btn" data-dir="${d.value}" title="Customers walk in moving ${d.label.toLowerCase()}"><svg viewBox="0 0 24 24"><path d="${d.path}"/></svg>${d.label}</button>`).join('')}
+                    </div>
+                </div>
+                <h3 class="ac-card-title" style="margin-bottom:14px;">Speed Thresholds</h3>
+                <div class="ze-speeds">
+                    ${SPEEDS.map(([id, , label]) => `<div><label class="ac-label" for="${id}">${label}</label><input class="ac-input" type="number" min="0" id="${id}" value="20"></div>`).join('')}
+                </div>`;
+
+            side.querySelectorAll('[data-dir]').forEach(b => b.addEventListener('click', () => {
+                direction = b.dataset.dir;
+                side.querySelectorAll('[data-dir]').forEach(x => x.classList.toggle('ac-btn-dark', x === b));
+                api.refresh();
+            }));
+            SPEEDS.forEach(([id]) => document.getElementById(id).addEventListener('input', api.refresh));
+        },
+
+        async onCamera(cam, api) {
+            let data = {};
+            try {
+                const res = await fetch(`${api.api}/thresholds/${encodeURIComponent(cam.ip)}/${cam.channel}`);
+                if (res.ok) data = await res.json();
+            } catch (_) {}
+            SPEEDS.forEach(([id, key]) => { document.getElementById(id).value = data[key] || 20; });
+            savedSpeeds = speedsNow();
+            api.refresh();
+        },
+
+        sideDirty: () => !!savedSpeeds && speedsNow().join() !== savedSpeeds.join(),
+
+        async saveSide(api) {
+            const cam = api.state.camera;
+            const body = { ip: cam.ip, channel: Number(cam.channel) };
+            SPEEDS.forEach(([id, key]) => { body[key] = Number(document.getElementById(id).value); });
+            const res = await fetch(`${api.api}/thresholds/${encodeURIComponent(cam.ip)}/${cam.channel}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            savedSpeeds = speedsNow();
+        },
+
+        onType(type) {
+            const box = document.getElementById('dir-box');
+            if (box) box.classList.toggle('ac-hidden', type !== 'in');
+        },
+
+        // Edit: the zone's own direction (a Walk In) shows and can be changed.
+        onEditStart(p) {
+            direction = p.direction || null;
+            document.querySelectorAll('[data-dir]').forEach(x => x.classList.toggle('ac-btn-dark', x.dataset.dir === direction));
+        },
+        onEditEnd() {
+            direction = null;
+            document.querySelectorAll('[data-dir]').forEach(x => x.classList.remove('ac-btn-dark'));
+        },
+        editExtra: () => direction,
+
+        validate(state) {
+            return state.type === 'in' && !direction ? 'Choose the walk-in direction first' : null;
+        },
+
+        extendPayload(payload, state) {
+            if (state.type === 'in') payload.direction = direction;
+        },
+
+        afterSave() {
+            direction = null;
+            document.querySelectorAll('[data-dir]').forEach(x => x.classList.remove('ac-btn-dark'));
+        },
+    });
+})();
+</script>
+{% endblock %}

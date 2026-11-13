@@ -1,0 +1,53 @@
+# ---- ห้ามขึ้น git เด็ดขาด : กุญแจและความลับ ----
+# private key ถอด log (log_seal) อยู่นอก repo เสมอ ชี้ด้วย env AICAM_LOG_SEAL_KEY
+*.pem
+*.key
+*.p8
+*.p12
+*.enc
+keys/
+_secrets.py
+keyguard*.py
+keyguard*.so
+**/.env
+**/.env.*
+!**/.env.example
+admin/.mock.env
+admin/backend/.builder_key
+client/data_service/configs/secure_env.pyx
+
+# ---- แอดมินจำลอง : ของที่สร้างตอนรัน ----
+admin/log/
+admin/backend/branches.db*
+admin/backend/client_code/
+admin/backend/client_update_master/
+admin/backend/dlc_master/
+admin/backend/managed_master/
+admin/backend/client_logs/
+admin/backend/log/
+# log ที่ดึงมาจากสาขา (ทั้งที่ยังเข้ารหัสและที่ถอดแล้ว) ไม่เก็บใน git
+admin/**/log_sessions/
+audit.log
+*.log
+
+# ---- client : ของที่ไม่ได้อยู่ใน git ของรีโปบริษัทอยู่แล้ว ----
+client/python_env
+client/bin
+client/db_support
+client/dlc_local/
+client/managed_services/
+client/release/
+client/build/
+client/video/
+client/logs/
+client/log/
+
+# ---- ทั่วไป ----
+__pycache__/
+*.pyc
+*.so
+*.c
+**/venv/
+**/.venv/
+**/.pytest_cache/
+.DS_Store

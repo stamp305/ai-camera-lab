@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/ui.css?v={{ range(1, 1000000) | random }}">
+<script>
+  try {
+    if (localStorage.getItem("ac-sidebar-collapsed") === "true") document.documentElement.classList.add("ac-pre-collapsed");
+  } catch (_) {}
+</script>
+{% endblock %}
+
+{% block body_class %}ac-body{% endblock %}
+
+{% block body %}
+<div class="ac-shell{% block shell_class %}{% endblock %}">
+    <aside class="ac-sidebar">
+        <div class="ac-sidebar-head">
+            <div class="ac-brand">
+                <img class="ac-brand-logo" src="/static/images/icons/logo_aicam.png" alt="">
+                <div class="ac-brand-text">
+                    <div class="ac-brand-word">ALI<span>TECH</span></div>
+                    <small class="ac-brand-sub">AI Smart Camera</small>
+                </div>
+            </div>
+            <button class="ac-sidebar-toggle" type="button" id="ac-sidebar-toggle" title="Collapse sidebar">
+                <img class="open" src="/static/images/icons/1.svg" alt="">
+                <img class="closed" src="/static/images/icons/2.svg" alt="">
+            </button>
+        </div>
+
+        <div class="ac-profile-wrap" id="ac-profile-wrap">
+            <button class="ac-profile" type="button" id="ac-profile-btn" aria-expanded="false">
+                <span class="ac-profile-logo"><img src="/static/images/icons/advice-logo-white.png" alt=""></span>
+                <span class="ac-profile-details"><strong>Advice IT Infinite</strong><small>Support</small></span>
+                <svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+            </button>
+            <div class="ac-profile-menu" id="ac-profile-menu" hidden>
+                <button type="button" onclick="handleLogout()"><img src="/static/images/icons/Sign_out.svg" alt="">Sign out</button>
+            </div>
+        </div>
+
+        <nav>
+            <div class="ac-nav-group" data-group="store">
+                <button class="ac-nav-group-btn" type="button">
+                    <svg class="ac-ico-fill" viewBox="0 0 20 20"><path d="M19 8.50006C19 8.44531 18.994 8.39073 18.982 8.33731L18.007 3.93631C17.8258 3.10099 17.363 2.35335 16.6961 1.81875C16.0292 1.28415 15.1987 0.995098 14.344 1.00006H5.656C4.80179 0.995788 3.97205 1.28515 3.30575 1.8197C2.63945 2.35424 2.17705 3.1015 1.996 3.93631L1.018 8.33731C1.00601 8.39073 0.99997 8.44531 1 8.50006V9.25006C0.999396 9.98026 1.26619 10.6854 1.75 11.2323V15.2501C1.75119 16.2443 2.14666 17.1974 2.84967 17.9004C3.55267 18.6034 4.5058 18.9989 5.5 19.0001H14.5C15.4942 18.9989 16.4473 18.6034 17.1503 17.9004C17.8533 17.1974 18.2488 16.2443 18.25 15.2501V11.2323C18.7338 10.6854 19.0006 9.98026 19 9.25006V8.50006ZM2.5 8.58181L3.46 4.26181C3.56878 3.761 3.84626 3.31274 4.24601 2.99205C4.64576 2.67135 5.14352 2.49767 5.656 2.50006H6.25V4.75006C6.25 4.94898 6.32902 5.13974 6.46967 5.28039C6.61032 5.42105 6.80109 5.50006 7 5.50006C7.19891 5.50006 7.38968 5.42105 7.53033 5.28039C7.67098 5.13974 7.75 4.94898 7.75 4.75006V2.50006H12.25V4.75006C12.25 4.94898 12.329 5.13974 12.4697 5.28039C12.6103 5.42105 12.8011 5.50006 13 5.50006C13.1989 5.50006 13.3897 5.42105 13.5303 5.28039C13.671 5.13974 13.75 4.94898 13.75 4.75006V2.50006H14.344C14.8565 2.49767 15.3542 2.67135 15.754 2.99205C16.1537 3.31274 16.4312 3.761 16.54 4.26181L17.5 8.58181V9.25006C17.5 9.64789 17.342 10.0294 17.0607 10.3107C16.7794 10.592 16.3978 10.7501 16 10.7501H15.25C14.8522 10.7501 14.4706 10.592 14.1893 10.3107C13.908 10.0294 13.75 9.64789 13.75 9.25006C13.75 9.05115 13.671 8.86039 13.5303 8.71973C13.3897 8.57908 13.1989 8.50006 13 8.50006C12.8011 8.50006 12.6103 8.57908 12.4697 8.71973C12.329 8.86039 12.25 9.05115 12.25 9.25006C12.25 9.64789 12.092 10.0294 11.8107 10.3107C11.5294 10.592 11.1478 10.7501 10.75 10.7501H9.25C8.85218 10.7501 8.47065 10.592 8.18934 10.3107C7.90804 10.0294 7.75 9.64789 7.75 9.25006C7.75 9.05115 7.67098 8.86039 7.53033 8.71973C7.38968 8.57908 7.19891 8.50006 7 8.50006C6.80109 8.50006 6.61032 8.57908 6.46967 8.71973C6.32902 8.86039 6.25 9.05115 6.25 9.25006C6.25 9.64789 6.09197 10.0294 5.81066 10.3107C5.52936 10.592 5.14783 10.7501 4.75 10.7501H4C3.60218 10.7501 3.22065 10.592 2.93934 10.3107C2.65804 10.0294 2.5 9.64789 2.5 9.25006V8.58181ZM14.5 17.5001H5.5C4.90326 17.5001 4.33097 17.263 3.90901 16.8411C3.48705 16.4191 3.25 15.8468 3.25 15.2501V12.1548C3.49495 12.2182 3.74697 12.2502 4 12.2501H4.75C5.17586 12.2503 5.59687 12.1596 5.98488 11.9841C6.37289 11.8086 6.71898 11.5523 7 11.2323C7.28103 11.5523 7.62711 11.8086 8.01512 11.9841C8.40314 12.1596 8.82414 12.2503 9.25 12.2501H10.75C11.1759 12.2503 11.5969 12.1596 11.9849 11.9841C12.3729 11.8086 12.719 11.5523 13 11.2323C13.281 11.5523 13.6271 11.8086 14.0151 11.9841C14.4031 12.1596 14.8241 12.2503 15.25 12.2501H16C16.253 12.2502 16.5051 12.2182 16.75 12.1548V15.2501C16.75 15.8468 16.5129 16.4191 16.091 16.8411C15.669 17.263 15.0967 17.5001 14.5 17.5001Z"/></svg>
+                    <span>Store Setup</span>
+                    <svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+                </button>
+                <div class="ac-nav-sub">
+                    <a href="/store-info" data-match="/store-info">Store Details</a>
+                    <a href="/floorplan" data-match="/floorplan">Floor Plan</a>
+                </div>
+            </div>
+
+            <div class="ac-nav-group" data-group="camera">
+                <button class="ac-nav-group-btn" type="button">
+                    <svg class="ac-ico-fill" viewBox="0 0 20 20"><path d="M13.75 1H6.25C4.18225 1 2.5 2.68225 2.5 4.75V12.25C2.5 14.3177 4.18225 16 6.25 16H6.27475C6.09025 16.1868 5.92075 16.3877 5.76925 16.6045C5.44825 17.0627 5.41075 17.632 5.668 18.1255C5.94925 18.6647 6.5215 19 7.16125 19H12.8372C13.4777 19 14.05 18.6647 14.3305 18.1255C14.5878 17.6313 14.5503 17.0627 14.2292 16.6038C14.0778 16.3878 13.9082 16.186 13.7238 16H13.7485C15.8162 16 17.4985 14.3177 17.4985 12.25V4.75C17.4985 2.68225 15.8162 1 13.7485 1H13.75ZM13.0015 17.431C12.9963 17.4445 12.9505 17.5 12.838 17.5H7.162C7.06675 17.5 7.01875 17.4603 7.00375 17.4603H7.0015C7.6345 16.5588 8.78275 15.9993 10.0008 15.9993C11.2188 15.9993 12.37 16.5602 13.0023 17.4303L13.0015 17.431ZM16 12.25C16 13.4905 14.9905 14.5 13.75 14.5H6.25C5.0095 14.5 4 13.4905 4 12.25V4.75C4 3.5095 5.0095 2.5 6.25 2.5H13.75C14.9905 2.5 16 3.5095 16 4.75V12.25ZM10 4.75C7.93225 4.75 6.25 6.43225 6.25 8.5C6.25 10.5677 7.93225 12.25 10 12.25C12.0677 12.25 13.75 10.5677 13.75 8.5C13.75 6.43225 12.0677 4.75 10 4.75ZM10 10.75C8.7595 10.75 7.75 9.7405 7.75 8.5C7.75 7.2595 8.7595 6.25 10 6.25C11.2405 6.25 12.25 7.2595 12.25 8.5C12.25 9.7405 11.2405 10.75 10 10.75Z"/></svg>
+                    <span>Camera &amp; Network</span>
+                    <svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+                </button>
+                <div class="ac-nav-sub">
+                    <a href="/networks" data-match="/networks /selector">Camera Network</a>
+                    <a href="/system" data-match="/system">Service Port Settings</a>
+                </div>
+            </div>
+
+            <div class="ac-nav-group" data-group="detection">
+                <button class="ac-nav-group-btn" type="button">
+                    <svg viewBox="0 0 20 20" style="stroke-width:1.5"><path d="M7.5 9.16634V16.6663M7.5 9.16634H3.83301C3.3663 9.16634 3.13318 9.16634 2.95492 9.25717C2.79811 9.33706 2.67072 9.46445 2.59083 9.62126C2.5 9.79952 2.5 10.033 2.5 10.4998V16.6663H7.5M7.5 9.16634V4.66642C7.5 4.19971 7.5 3.96618 7.59083 3.78792C7.67072 3.63112 7.79811 3.50373 7.95492 3.42384C8.13317 3.33301 8.3663 3.33301 8.83301 3.33301H11.1663C11.6331 3.33301 11.8669 3.33301 12.0452 3.42384C12.202 3.50373 12.329 3.63112 12.4089 3.78792C12.4997 3.96618 12.5 4.19971 12.5 4.66642V6.66634M7.5 16.6663H12.5M12.5 16.6663L17.5 16.6664V7.99976C17.5 7.53305 17.4997 7.29952 17.4089 7.12126C17.329 6.96445 17.2024 6.83706 17.0456 6.75717C16.8674 6.66634 16.6334 6.66634 16.1667 6.66634H12.5M12.5 16.6663V6.66634"/></svg>
+                    <span>Detection Setup</span>
+                    <svg class="ac-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+                </button>
+                <div class="ac-nav-sub">
+                    <a href="/draw" data-match="/draw">Traffic Detection</a>
+                    <a href="/zone-draw" data-match="/zone-draw">Zone Area</a>
+                    <a href="/rate" data-match="/rate">Service Area</a>
+                    <a href="/attendance" data-match="/attendance">Staff Detection</a>
+                </div>
+            </div>
+
+            <div class="ac-nav-group">
+                <a class="ac-nav-link" href="/display" data-match="/display">
+                    <svg viewBox="0 0 20 20" style="stroke-width:1.5"><path d="M12.5026 16.667H7.5026M3.33594 11.5005V6.83382C3.33594 5.9004 3.33594 5.43334 3.51759 5.07682C3.67738 4.76322 3.93216 4.50844 4.24577 4.34865C4.60229 4.16699 5.06935 4.16699 6.00277 4.16699H14.0028C14.9362 4.16699 15.4022 4.16699 15.7588 4.34865C16.0724 4.50844 16.328 4.76322 16.4878 5.07682C16.6693 5.43299 16.6693 5.89949 16.6693 6.83108V11.5029C16.6693 12.4345 16.6693 12.9003 16.4878 13.2565C16.328 13.5701 16.0724 13.8257 15.7588 13.9855C15.4026 14.167 14.9368 14.167 14.0052 14.167H6.00003C5.06843 14.167 4.60194 14.167 4.24577 13.9855C3.93216 13.8257 3.67738 13.5701 3.51759 13.2565C3.33594 12.9 3.33594 12.4339 3.33594 11.5005ZM12.0859 9.16699L8.33594 6.66699V11.667L12.0859 9.16699Z"/></svg>
+                    <span>Live Display</span>
+                </a>
+            </div>
+        </nav>
+    </aside>
+
+    <main class="ac-main">
+        {% block topbar %}
+        <div class="ac-topbar">
+            <div class="ac-breadcrumb">
+                {%- set _crumb_parent %}{% block crumb_parent %}Store Setup{% endblock %}{% endset %}
+                {%- if _crumb_parent | trim %}
+                <span>{{ _crumb_parent }}</span>
+                <span class="sep">/</span>
+                {%- endif %}
+                <span class="current">{% block crumb_current %}{% endblock %}</span>
+            </div>
+        </div>
+        {% endblock %}
+        {% block content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // (function() {
+    //     const userData = requireAuth();
+    //     if (!userData) return;
+    //     checkServerStatus().then(isOnline => {
+    //         if (!isOnline) window.location.href = appUrl('/connection');
+    //     });
+    // })();
+
+    // The guard above is off, but the session watcher it started has to stay on:
+    // without it an expired page sat there until the next click landed on /login.
+    // It only goes by the server cookie (and loginAt for the 24 h timer when this
+    // tab has it), so it never bounces a tab that is signed in.
+    (function() {
+        let userData = null;
+        try { userData = JSON.parse(sessionStorage.getItem('userData') || 'null'); } catch (_) {}
+        watchSession(userData || {});
+    })();
+
+    (function() {
+        if (document.documentElement.classList.contains('ac-pre-collapsed')) document.body.classList.add('ac-sidebar-collapsed');
+        document.getElementById('ac-sidebar-toggle').addEventListener('click', () => {
+            const collapsed = document.body.classList.toggle('ac-sidebar-collapsed');
+            try { localStorage.setItem('ac-sidebar-collapsed', String(collapsed)); } catch (_) {}
+        });
+
+        document.querySelectorAll('.ac-nav-group-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (document.body.classList.contains('ac-sidebar-collapsed')) {
+                    document.body.classList.remove('ac-sidebar-collapsed');
+                    try { localStorage.setItem('ac-sidebar-collapsed', 'false'); } catch (_) {}
+                    return;
+                }
+                btn.parentElement.classList.toggle('collapsed');
+            });
+        });
+
+        // Paths arrive with the remote-view prefix when an admin tunnels in.
+        const path = '/' + window.location.pathname.slice(REMOTE_PREFIX.length).replace(/\/$/, '');
+        const link = [...document.querySelectorAll('.ac-sidebar nav a[data-match]')]
+            .find(a => a.dataset.match.split(' ').filter(Boolean).some(m => path === m || path.startsWith(m + '/')));
+        if (link) link.classList.add('is-active');
+
+        const profileBtn = document.getElementById('ac-profile-btn');
+        const profileMenu = document.getElementById('ac-profile-menu');
+        profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const open = profileMenu.hidden;
+            profileMenu.hidden = !open;
+            profileBtn.setAttribute('aria-expanded', String(open));
+        });
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('ac-profile-wrap').contains(e.target)) {
+                profileMenu.hidden = true;
+                profileBtn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    })();
+
+    // Shared helpers for pages built on this layout.
+    window.acModal = {
+        open(id) { document.getElementById(id).hidden = false; },
+        close(id) { document.getElementById(id).hidden = true; },
+    };
+    document.addEventListener('click', (e) => {
+        if (e.target.classList && e.target.classList.contains('ac-modal')) e.target.hidden = true;
+        document.querySelectorAll('.ac-menu:not([hidden])').forEach(m => {
+            if (!m.parentElement.contains(e.target)) m.hidden = true;
+        });
+    });
+    window.acEscape = (str) => String(str == null ? '' : str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+    async function handleLogout() {
+        try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+        sessionStorage.removeItem("userData");
+        window.location.href = appUrl("/login");
+    }
+</script>
+{% endblock %}

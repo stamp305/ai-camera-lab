@@ -1,0 +1,490 @@
+{% extends "layout_navbar.html" %}
+{% block title %}Camera Selection - AI Camera{% endblock %}
+{% block crumb_parent %}Camera &amp; Network{% endblock %}
+{% block crumb_current %}Camera Network{% endblock %}
+
+{% block content %}
+<style>
+    .place-note { margin-top: 8px; line-height: 1.55; }
+    .cam-place { appearance: none; -webkit-appearance: none; height: 26px; padding: 0 26px 0 10px; border: 1px solid transparent;
+        border-radius: 6px; background: #f2f2f2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23444' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 8px center / 12px;
+        font: inherit; font-size: 12px; color: #202020; cursor: pointer; }
+    .cam-place:hover { background-color: #e9e9e9; }
+    .cam-place:focus-visible { outline: none; border-color: #8a8a8a; }
+    .cam-place:disabled { opacity: .6; cursor: default; }
+</style>
+<div class="ac-page">
+    <div class="ac-page-head">
+        <h1 class="ac-page-title">Camera Network</h1>
+        <p class="ac-page-sub">Add, edit or remove your camera network</p>
+        <p class="ac-page-sub place-note">
+            <strong>Inside / Outside</strong> tells the AI whether a camera sees inside your store or outside it, so people outside are not counted or alerted on.
+            Set by the AI; change it if wrong. <strong>Not selected</strong> = not decided yet.
+        </p>
+    </div>
+
+    <div class="ac-tabs">
+        <a class="ac-tab" href="/networks">Camera Network</a>
+        <a class="ac-tab is-active" href="/selector">Camera Selection</a>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;">
+        <div>
+            <h2 class="ac-card-title">Select Network</h2>
+            <p class="ac-page-sub">Choose up to 8 cameras to use with AI features.</p>
+        </div>
+        <button id="btn-open-select" class="ac-btn ac-btn-lg">Select Network</button>
+    </div>
+
+    <div id="loading" class="ac-empty"><div class="ac-spinner"></div></div>
+
+    <div id="empty" class="ac-empty ac-hidden">
+        <div class="ac-empty-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div>
+        <h3 id="empty-title">No camera networks</h3>
+        <p id="empty-text">Camera networks will show up here, along with their connection status and available cameras.</p>
+        <button id="btn-empty-select" class="ac-btn ac-btn-sm">Select Network</button>
+    </div>
+
+    <div id="panel" class="ac-card ac-card-pad ac-hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;">
+            <div>
+                <div id="panel-title" class="ac-card-title"></div>
+                <div id="panel-count" style="font-size:13px;color:#5c5c5c;margin-top:2px;"></div>
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button id="btn-cancel" class="ac-btn" disabled>Cancel</button>
+                <button id="btn-save" class="ac-btn ac-btn-dark">Save</button>
+            </div>
+        </div>
+
+        <div id="pending" class="ac-empty ac-hidden" style="padding:48px 16px;">
+            <div class="ac-spinner" style="margin-bottom:12px;"></div>
+            <p id="pending-text" style="margin:0;">Scanning cameras on this network...</p>
+        </div>
+        <div id="no-cams" class="ac-empty ac-hidden" style="padding:48px 16px;">
+            <h3>No cameras found</h3>
+            <p style="margin:0;">This network did not report any camera channels.</p>
+        </div>
+        <div id="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;"></div>
+    </div>
+</div>
+
+<!-- Select Network -->
+<div id="modal-select" class="ac-modal" hidden>
+    <div class="ac-modal-box">
+        <div class="ac-modal-head"><h2>Select Network</h2></div>
+        <div class="ac-modal-body">
+            <div id="radio-grid" class="ac-radio-grid"></div>
+            <p id="radio-empty" class="ac-modal-text ac-hidden">No camera networks yet. Add one in the Camera Network tab first.</p>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" id="btn-select-cancel">Cancel</button>
+                <button type="button" class="ac-btn ac-btn-dark ac-btn-lg" id="btn-select-confirm" disabled>Select</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function() {
+    const API = getApiUrl();
+    const MAX = 8;
+    const esc = window.acEscape;
+    const $ = (id) => document.getElementById(id);
+
+    let networks = [];
+    let savedSelection = [];   // what the server has
+    let selection = [];        // working copy, across all networks
+    let current = null;        // selected network config
+    let cams = [];
+    let pendingChoice = null;
+    let pollTimer = null;
+    // Retaken channels need a cache-busting token that survives renderGrid() rebuilding
+    // the <img> from scratch — otherwise the browser's own HTTP cache (the `cached=1`
+    // response is sent with a 1h Cache-Control) serves the pre-retake picture again
+    // the moment any selection click re-renders the grid.
+    const retakeStamp = {};
+    // Inside / outside per channel, "ip|channel" -> row of GET /cameras/placement
+    // (data_service/db/crud/camera_placement_crud.py). No row: the AI has not judged it yet.
+    let placements = {};
+    let placementTimer = null;
+    const camKey = (c) => `${c.ip}|${Number(c.channel)}`;
+
+    const sameCam = (a, b) => a.ip === b.ip && Number(a.channel) === Number(b.channel);
+
+    async function init() {
+        try {
+            const [nRes, sRes] = await Promise.all([
+                fetch(`${API}/cameras/configs`),
+                fetch(`${API}/cameras/channels?status=1`),
+            ]);
+            if (!nRes.ok || !sRes.ok) throw new Error('HTTP error');
+            networks = await nRes.json();
+            savedSelection = await sRes.json();
+            selection = savedSelection.map(c => ({ ...c }));
+        } catch (err) {
+            console.error(err);
+            ToastManager.error('Could not load camera data');
+        }
+        $('loading').classList.add('ac-hidden');
+
+        const firstSaved = savedSelection[0];
+        const preset = firstSaved && networks.find(n => n.ip === firstSaved.ip
+            && n.name.toLowerCase() === (firstSaved.network_name || '').toLowerCase());
+        if (preset) chooseNetwork(preset); else showEmpty();
+    }
+
+    function showEmpty() {
+        $('panel').classList.add('ac-hidden');
+        $('empty').classList.remove('ac-hidden');
+        $('btn-open-select').textContent = 'Select Network';
+    }
+
+    // ---- Select Network modal ----
+    // How many cameras of a network are selected for AI (the working selection, saved or not).
+    function aiCameraCount(n) {
+        const k = selection.filter(s => s.ip === n.ip
+            && (s.network_name || '').toLowerCase() === n.name.toLowerCase()).length;
+        return `${k} AI camera${k === 1 ? '' : 's'} selected`;
+    }
+    function openSelect() {
+        pendingChoice = current;
+        const grid = $('radio-grid');
+        $('radio-empty').classList.toggle('ac-hidden', networks.length > 0);
+        grid.innerHTML = networks.map(n => `
+            <button type="button" class="ac-radio-card${current && current.id === n.id ? ' is-active' : ''}" data-id="${n.id}">
+                <strong>${esc(n.name)}</strong>
+                <small>${esc(n.ip)} · ${aiCameraCount(n)}</small>
+                <span class="ac-radio-dot"></span>
+            </button>`).join('');
+        grid.querySelectorAll('[data-id]').forEach(card => card.addEventListener('click', () => {
+            grid.querySelectorAll('.ac-radio-card').forEach(c => c.classList.remove('is-active'));
+            card.classList.add('is-active');
+            pendingChoice = networks.find(n => String(n.id) === card.dataset.id);
+            $('btn-select-confirm').disabled = false;
+        }));
+        $('btn-select-confirm').disabled = !pendingChoice;
+        acModal.open('modal-select');
+    }
+    $('btn-open-select').addEventListener('click', openSelect);
+    $('btn-empty-select').addEventListener('click', openSelect);
+    $('btn-select-cancel').addEventListener('click', () => acModal.close('modal-select'));
+    $('btn-select-confirm').addEventListener('click', () => {
+        acModal.close('modal-select');
+        if (pendingChoice) chooseNetwork(pendingChoice);
+    });
+
+    // ---- Camera grid ----
+    function chooseNetwork(n) {
+        current = n;
+        $('empty').classList.add('ac-hidden');
+        $('panel').classList.remove('ac-hidden');
+        $('btn-open-select').textContent = 'Change Network';
+        $('panel-title').textContent = n.name;
+        cams = [];
+        renderGrid();
+        fetchCams();
+    }
+
+    async function fetchCams() {
+        clearTimeout(pollTimer);
+        const net = current;
+        $('pending').classList.remove('ac-hidden');
+        $('no-cams').classList.add('ac-hidden');
+        try {
+            const res = await fetch(`${API}/cameras/channels/${encodeURIComponent(net.ip)}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (net !== current) return;
+            if (data.status === 'pending') {
+                $('pending-text').textContent = 'Scanning cameras on this network... retrying in 5 seconds';
+                pollTimer = setTimeout(fetchCams, 5000);
+                return;
+            }
+            cams = data.data || [];
+            await fetchPlacements(net);
+            if (net !== current) return;
+            $('pending').classList.add('ac-hidden');
+            $('no-cams').classList.toggle('ac-hidden', cams.length > 0);
+            renderGrid();
+        } catch (err) {
+            console.error(err);
+            $('pending').classList.add('ac-hidden');
+            ToastManager.error(`Could not load cameras for ${net.name}`);
+        }
+    }
+
+    // The AI judges a channel within a minute or two of its picture being taken, so
+    // while some shown channel has no answer yet, look again now and then.
+    async function fetchPlacements(net) {
+        clearTimeout(placementTimer);
+        try {
+            const res = await fetch(`${API}/cameras/placement?ip=${encodeURIComponent(net.ip)}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            placements = {};
+            (await res.json()).forEach(p => { placements[camKey(p)] = p; });
+        } catch (err) { console.error(err); }
+        if (net === current && cams.some(c => !isEmpty(c) && !placements[camKey(c)]?.placement)) {
+            placementTimer = setTimeout(async () => {
+                if (net !== current) return;
+                await fetchPlacements(net);
+                if (net === current) refreshPlaceSelects();
+            }, 30000);
+        }
+    }
+
+    function placeHtml(cam) {
+        const p = placements[camKey(cam)] || {};
+        const value = p.placement === 'inside' || p.placement === 'outside' ? p.placement : '';
+        let title;
+        if (p.set_by === 'user') title = 'Set by you';
+        else if (value) title = 'Set by AI';
+        else title = 'Not decided yet';
+        // The AI's "uncertain" is shown as undecided, the same as no answer yet.
+        const blank = value ? '' : '<option value="" selected disabled>Not selected</option>';
+        return `<select class="cam-place" title="${esc(title)}" aria-label="Inside or outside the store">
+                    ${blank}
+                    <option value="inside"${value === 'inside' ? ' selected' : ''}>Inside</option>
+                    <option value="outside"${value === 'outside' ? ' selected' : ''}>Outside</option>
+                </select>`;
+    }
+
+    function bindPlaceSelect(sel) {
+        // Inside the tile: picking a value must not also toggle the selection.
+        ['click', 'keydown', 'mousedown'].forEach(ev => sel.addEventListener(ev, e => e.stopPropagation()));
+        // Picking the side it is already on must count too (it asks the server again for the
+        // part of the picture outside the shop), but a <select> fires no change for the same
+        // value: clear it while the list is open, and put it back if nothing was picked.
+        const was = sel.value;
+        sel.addEventListener('mousedown', () => { if (!sel.disabled) sel.selectedIndex = -1; });
+        sel.addEventListener('blur', () => { if (sel.selectedIndex === -1) sel.value = was; });
+        sel.addEventListener('change', async () => {
+            const tile = sel.closest('[data-ch]');
+            const cam = cams.find(c => String(c.channel) === tile.dataset.ch);
+            const value = sel.value;
+            sel.disabled = true;
+            try {
+                const res = await fetch(`${API}/cameras/placement/${encodeURIComponent(cam.ip)}/${cam.channel}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ placement: value }),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                placements[camKey(cam)] = await res.json();
+                ToastManager.success(`Camera ${cam.channel} set to ${value === 'inside' ? 'Inside' : 'Outside'}`);
+            } catch (err) {
+                ToastManager.error(`Could not save Camera ${cam.channel}`, err.message);
+            }
+            replacePlaceSelect(sel, cam);
+        });
+    }
+
+    function replacePlaceSelect(sel, cam) {
+        const box = document.createElement('div');
+        box.innerHTML = placeHtml(cam);
+        const fresh = box.firstElementChild;
+        sel.replaceWith(fresh);
+        bindPlaceSelect(fresh);
+    }
+
+    // Only the dropdowns, so a picture being loaded or a selection in progress is left alone.
+    function refreshPlaceSelects() {
+        $('grid').querySelectorAll('select.cam-place').forEach(sel => {
+            if (document.activeElement === sel || sel.disabled) return;
+            const cam = cams.find(c => String(c.channel) === sel.closest('[data-ch]').dataset.ch);
+            if (cam) replacePlaceSelect(sel, cam);
+        });
+    }
+
+    function claimedByOther(cam) {
+        const hit = selection.find(s => sameCam(s, cam));
+        return hit && (hit.network_name || '').toLowerCase() !== current.name.toLowerCase() ? hit.network_name : null;
+    }
+
+    async function onRetry(e) {
+        e.preventDefault(); e.stopPropagation();
+        const tile = e.currentTarget.closest('[data-ch]');
+        const cam = cams.find(c => String(c.channel) === tile.dataset.ch);
+        const status = tile.querySelector('.cam-status');
+        status.innerHTML = '<div class="ac-spinner spinner-sm spinner-light"></div><span>Retrying...</span>';
+        try {
+            const res = await fetch(`${API}/cameras/image/${encodeURIComponent(cam.ip)}/${cam.channel}/retry`, { method: 'POST' });
+            const wasEmpty = isEmpty(cam);
+            Object.assign(cam, await res.json());
+            if (wasEmpty !== isEmpty(cam)) { renderGrid(); return; }   // a camera was just set up there, or removed
+            if (cam.snapshot_state === 'ok') {
+                retakeStamp[`${cam.ip}|${cam.channel}`] = Date.now();
+                const img = tile.querySelector('img.cam-thumb');
+                img.src = `${img.dataset.src}&retry=${retakeStamp[`${cam.ip}|${cam.channel}`]}`;
+                return;   // the image's load handler removes the status
+            }
+        } catch (err) { console.error(err); }
+        status.innerHTML = statusHtml(cam);
+        status.querySelector('.cam-retry')?.addEventListener('click', onRetry);
+    }
+
+    // Retake picture: a new picture from the camera, replacing the kept one. Inside
+    // the tile button, so it must not also toggle the selection. The old picture
+    // stays up while it works and when it fails.
+    async function onRetake(e) {
+        e.preventDefault(); e.stopPropagation();
+        const btn = e.currentTarget;
+        if (btn.dataset.busy) return;
+        const tile = btn.closest('[data-ch]');
+        const cam = cams.find(c => String(c.channel) === tile.dataset.ch);
+        const label = btn.querySelector('span');
+        btn.dataset.busy = '1'; btn.style.opacity = '.6'; label.textContent = 'Taking picture...';
+        try {
+            const res = await fetch(`${API}/cameras/image/${encodeURIComponent(cam.ip)}/${cam.channel}/retake`, { method: 'POST' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            retakeStamp[`${cam.ip}|${cam.channel}`] = Date.now();
+            const img = tile.querySelector('img.cam-thumb');
+            img.src = `${img.dataset.src}&retry=${retakeStamp[`${cam.ip}|${cam.channel}`]}`;
+        } catch (err) {
+            ToastManager.error(`Could not get a new picture from Camera ${cam.channel}`);
+        } finally {
+            delete btn.dataset.busy; btn.style.opacity = ''; label.textContent = 'Retake picture';
+        }
+    }
+
+    // A channel with nothing on it (the NVR has no camera set up there, or has no such
+    // channel): an empty tile that cannot be selected, unless it is already in use.
+    const isEmpty = (cam) => cam.snapshot_state === 'absent' || cam.snapshot_state === 'beyond';
+
+    const pillStyle = 'margin-top:4px;padding:4px 12px;border:1px solid #6b7280;border-radius:6px;color:#fff;cursor:pointer;';
+
+    // What a tile shows until its picture arrives. Only two kinds of missing picture:
+    // "Empty channel" (nothing on it: the NVR has no camera set up there, or has no
+    // such channel) and "No signal" (a camera that gives no picture).
+    function statusHtml(cam) {
+        const at = cam.snapshot_last_try
+            ? new Date(cam.snapshot_last_try * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : '';
+        const when = at ? `<span style="color:#9ca3af;">Last tried ${at}${cam.snapshot_gave_up ? '' : ' · retrying automatically'}</span>` : '';
+        if (isEmpty(cam)) {
+            return `<strong style="font-size:14px;color:#9ca3af;">Empty channel</strong>
+                    <span style="color:#6b7280;">${esc(cam.snapshot_note || 'No camera on this channel')}</span>
+                    <span class="cam-retry" role="button" tabindex="0" style="${pillStyle}">Check again</span>`;
+        }
+        if (cam.snapshot_state === 'broken' || cam.snapshot_state === 'no_signal') {
+            return `<strong style="font-size:14px;">No signal</strong>
+                    ${when}
+                    <span class="cam-retry" role="button" tabindex="0" style="${pillStyle}">Retry</span>`;
+        }
+        return '<div class="ac-spinner spinner-sm spinner-light"></div><span style="color:#9ca3af;">Loading picture...</span>';
+    }
+
+    // Cancel only does something when the selection differs from what is saved.
+    function selectionKeys(list) {
+        return list.map(c => `${c.ip}|${Number(c.channel)}|${(c.network_name || '').toLowerCase()}`).sort().join(',');
+    }
+    function updateCancel() {
+        $('btn-cancel').disabled = selectionKeys(selection) === selectionKeys(savedSelection);
+    }
+
+    function renderGrid() {
+        $('panel-count').textContent = `Selected Camera (${selection.length}/${MAX})`;
+        updateCancel();
+        $('grid').innerHTML = cams.map(cam => {
+            const other = claimedByOther(cam);
+            const on = !other && selection.some(s => sameCam(s, cam));
+            const empty = isEmpty(cam) && !on;   // nothing to select; one already in use stays selectable
+            // The picture kept since app start (data_service/utils/snapshot_cache.py).
+            // Carry over the retake cache-buster if this channel was retaken this
+            // session, so a re-render (e.g. from toggling any selection) doesn't fall
+            // back to the browser's cached pre-retake response for this URL.
+            const stamp = retakeStamp[`${cam.ip}|${cam.channel}`];
+            const src = `${API}/cameras/image/${encodeURIComponent(cam.ip)}/${cam.channel}?cached=1`
+                + (stamp ? `&retry=${stamp}` : '');
+            return `
+                <div role="button" tabindex="${other || empty ? -1 : 0}" data-ch="${cam.channel}" ${other ? 'aria-disabled="true"' : ''}
+                    style="display:block;padding:0;text-align:left;cursor:pointer;border:1px ${empty ? 'dashed' : 'solid'} ${on ? '#202020' : '#e5e5e5'};border-radius:8px;overflow:hidden;background:#fff;${other ? 'opacity:.5;cursor:not-allowed;' : ''}${empty ? 'cursor:default;' : ''}">
+                    <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;">
+                        <svg viewBox="0 0 24 24" style="width:18px;height:18px;fill:none;stroke:#444;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/></svg>
+                        <span style="flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Camera ${cam.channel}${other ? ` · used by ${esc(other)}` : ''}</span>
+                        ${empty ? '' : `<span class="ac-check${on ? ' on' : ''}"><svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg></span>`}
+                    </div>
+                    ${empty ? '<div style="height:34px;"></div>' : `<div style="padding:0 14px 12px;margin-top:-4px;">${placeHtml(cam)}</div>`}
+                    <div style="position:relative;aspect-ratio:16/9;background:${empty ? '#111827' : '#1f2937'};">
+                        ${empty ? '' : `<img class="cam-thumb" data-src="${src}" src="${src}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;visibility:hidden;">`}
+                        <div class="cam-status" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#e5e7eb;font-size:13px;text-align:center;padding:8px;">
+                            ${statusHtml(cam)}
+                        </div>
+                        ${empty ? '' : `<span class="cam-retake" role="button" tabindex="0" title="Take a new picture from this camera now"
+                              style="position:absolute;right:8px;bottom:8px;display:none;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;background:rgba(17,24,39,.75);color:#fff;font-size:12px;cursor:pointer;">
+                            <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg><span>Retake picture</span>
+                        </span>`}
+                    </div>
+                </div>`;
+        }).join('');
+        // A channel the background prefetch has not reached, or one with no signal,
+        // answers 404: keep the status over the empty tile and ask again later.
+        // The prefetch keeps retrying, so a camera that comes back appears by itself.
+        $('grid').querySelectorAll('img.cam-thumb').forEach(img => {
+            img.addEventListener('load', () => {
+                img.style.visibility = 'visible';
+                img.parentElement.querySelector('.cam-retake').style.display = 'inline-flex';
+                const status = img.parentElement.querySelector('.cam-status');
+                if (status) status.remove();
+            });
+            img.addEventListener('error', () => {
+                img.style.visibility = 'hidden';
+                setTimeout(() => {
+                    if (img.isConnected) img.src = `${img.dataset.src}&retry=${Date.now()}`;
+                }, 15000);
+            });
+        });
+        // Retry: try this channel at once (e.g. the camera was just fixed). Inside the
+        // tile button, so it must not also toggle the selection.
+        $('grid').querySelectorAll('.cam-retry').forEach(el => el.addEventListener('click', onRetry));
+        $('grid').querySelectorAll('.cam-retake').forEach(el => el.addEventListener('click', onRetake));
+        $('grid').querySelectorAll('select.cam-place').forEach(bindPlaceSelect);
+        $('grid').querySelectorAll('[data-ch]:not([aria-disabled="true"])').forEach(card => card.addEventListener('keydown', (e) => {
+            if (e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); card.click(); }
+        }));
+        $('grid').querySelectorAll('[data-ch]:not([aria-disabled="true"])').forEach(card => card.addEventListener('click', () => {
+            const cam = cams.find(c => String(c.channel) === card.dataset.ch);
+            const idx = selection.findIndex(s => sameCam(s, cam));
+            if (idx < 0 && isEmpty(cam)) return;   // an empty channel cannot be selected
+            if (idx >= 0) {
+                selection.splice(idx, 1);
+            } else {
+                if (selection.length >= MAX) {
+                    ToastManager.error(`You can select up to ${MAX} cameras`);
+                    return;
+                }
+                selection.push({ ip: cam.ip, channel: Number(cam.channel), network_name: current.name });
+            }
+            renderGrid();
+        }));
+    }
+
+    $('btn-cancel').addEventListener('click', () => {
+        selection = savedSelection.map(c => ({ ...c }));
+        renderGrid();
+    });
+
+    $('btn-save').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        try {
+            const res = await fetch(`${API}/cameras/channels/selection`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(selection.map(s => ({ ip: s.ip, channel: Number(s.channel), network_name: s.network_name }))),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            savedSelection = selection.map(c => ({ ...c }));
+            updateCancel();
+            ToastManager.success('Camera selection saved');
+        } catch (err) {
+            ToastManager.error('Could not save selection', err.message);
+        } finally { btn.disabled = false; }
+    });
+
+    init();
+})();
+</script>
+{% endblock %}

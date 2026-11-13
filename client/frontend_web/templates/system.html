@@ -1,0 +1,352 @@
+{% extends "layout_navbar.html" %}
+{% block title %}Service Port Settings - AI Camera{% endblock %}
+{% block crumb_parent %}Camera &amp; Network{% endblock %}
+{% block crumb_current %}Service Port Settings{% endblock %}
+
+{% block content %}
+<div class="ac-page">
+    <div class="ac-page-head">
+        <h1 class="ac-page-title">Service Port Settings</h1>
+        <p class="ac-page-sub">Edit the ports your services listen on</p>
+    </div>
+
+    <!-- A saved port is only a row in the database until the services start again. -->
+    <div id="restart-notice" class="ac-hidden" role="status"
+         style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 16px;border:1px solid #f5c26b;border-radius:8px;background:#fff8e6;color:#7a4b00;font-size:14px;">
+        <div><strong>Restart needed.</strong> <span id="restart-notice-text"></span></div>
+        <button type="button" class="ac-btn ac-btn-sm" id="btn-notice-restart">Restart now</button>
+    </div>
+
+    <div id="loading" class="ac-empty"><div class="ac-spinner"></div></div>
+
+    <div id="empty" class="ac-empty ac-hidden">
+        <div class="ac-empty-icon"><svg viewBox="0 0 24 24"><path d="M5 20v-6a7 7 0 0 1 14 0v6zM9 20v-3M12 20v-3M15 20v-3M3 20h18"/></svg></div>
+        <h3>No port yet</h3>
+        <p>Service ports will show up here, along with whether each service is running.</p>
+    </div>
+
+    <div id="card" class="ac-card ac-hidden" style="padding:16px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 8px 16px;">
+            <h2 class="ac-card-title">Service Port Settings</h2>
+            <div style="display:flex;gap:8px;">
+                <button class="ac-btn ac-btn-dark ac-btn-lg" id="btn-restart"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8M18 2v4h-4M6 22v-4h4"/></svg>Restart System</button>
+            </div>
+        </div>
+        <div style="overflow-x:auto;">
+            <table class="ac-table">
+                <thead>
+                    <tr>
+                        <th style="width:80px;">No.</th>
+                        <th class="left">Port name</th>
+                        <th class="left">Port</th>
+                        <th>Status</th>
+                        <th style="width:100px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody"></tbody>
+            </table>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 8px 0;">
+            <div class="ac-pill-wrap">
+                <button class="ac-btn ac-btn-sm" id="btn-page-size" style="border:0;">Show <span id="page-size-val">10</span><svg viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg></button>
+                <div class="ac-menu" id="page-size-menu" hidden style="top:auto;bottom:calc(100% + 6px);">
+                    <button data-size="10">10</button><button data-size="20">20</button><button data-size="50">50</button>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#5c5c5c;">
+                <span id="page-info"></span>
+                <button class="ac-kebab" id="page-prev" title="Previous"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;"><path d="m15 6-6 6 6 6"/></svg></button>
+                <button class="ac-kebab" id="page-next" title="Next"><svg viewBox="0 0 24 24" style="fill:none;stroke:currentColor;stroke-width:2;"><path d="m9 6 6 6-6 6"/></svg></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add / Edit Port -->
+<div id="modal-port" class="ac-modal" hidden>
+    <div class="ac-modal-box ac-modal-sm">
+        <div class="ac-modal-head"><h2 id="port-title">Edit Port</h2></div>
+        <form id="form-port" class="ac-modal-body" autocomplete="off">
+            <div class="ac-field">
+                <label class="ac-label" for="p-name">Port name</label>
+                <input class="ac-input" id="p-name" placeholder="e.g. heatmap_service" pattern="[A-Za-z0-9_\-]+" title="Letters, numbers, - and _ only" required>
+            </div>
+            <div class="ac-field" style="margin-bottom:0;">
+                <label class="ac-label" for="p-port">Port</label>
+                <input class="ac-input" id="p-port" type="number" min="1024" max="65535" placeholder="1024-65535" required>
+                <div id="p-hint" style="min-height:20px;margin-top:6px;font-size:13px;"></div>
+                <p id="p-restart-note" style="margin:6px 0 0;font-size:12px;color:#6b7280;">A changed port takes effect only after the system restarts.</p>
+            </div>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" data-close="modal-port">Cancel</button>
+                <button type="submit" class="ac-btn ac-btn-dark ac-btn-lg" id="btn-port-save">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Restart -->
+<div id="modal-restart" class="ac-modal" hidden>
+    <div class="ac-modal-box ac-modal-sm">
+        <div class="ac-modal-head"><h2>Restart system?</h2></div>
+        <div class="ac-modal-body">
+            <p class="ac-modal-text">Every service will stop and start again so new ports take effect. Cameras and analytics pause for about a minute.</p>
+            <div class="ac-modal-foot">
+                <button type="button" class="ac-btn ac-btn-lg" data-close="modal-restart">Cancel</button>
+                <button type="button" class="ac-btn ac-btn-dark ac-btn-lg" id="btn-confirm-restart">Restart</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(function() {
+    const esc = window.acEscape;
+    const $ = (id) => document.getElementById(id);
+
+    let rows = [];          // [{name, port, status}]
+    let owners = {};        // {port: service name}
+    let page = 0, pageSize = 10;
+    let editing = null;     // service name being edited, null when adding
+
+    document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => acModal.close(b.dataset.close)));
+
+    function badge(s) {
+        switch (s && s.state) {
+            case 'running': return '<span class="ac-badge ac-badge-on">Online</span>';
+            case 'starting': return '<span class="ac-badge ac-badge-info ac-badge-dots">Starting</span>';
+            case 'restarting': return '<span class="ac-badge ac-badge-warn ac-badge-dots">Restarting</span>';
+            case 'port_taken': return `<span class="ac-badge ac-badge-err" title="${esc(s.process || '')}">Port in use</span>`;
+            case 'crashed': return `<span class="ac-badge ac-badge-err" title="${esc(s.detail || '')}">Failed</span>`;
+            default: return '<span class="ac-badge ac-badge-off" title="Queued to start; services start one at a time">Waiting</span>';
+        }
+    }
+
+    // While anything is on its way up, ask again every few seconds so the badges follow
+    // the start-up queue; once everything has settled, the 30 s poll is enough.
+    const BUSY = new Set(['starting', 'waiting', 'restarting']);
+    let fastTimer = null;
+    function scheduleFast() {
+        clearTimeout(fastTimer);
+        if (restarting || !rows.some(r => BUSY.has(r.status && r.status.state))) return;
+        fastTimer = setTimeout(() => {
+            if (document.querySelector('.ac-modal:not([hidden])') == null) load();
+            else scheduleFast();
+        }, 3000);
+    }
+
+    // Ports saved but not applied yet, {service: port}. Kept in this browser so the notice
+    // is still there after a reload; cleared when the system is restarted from here.
+    let pendingPorts = {};
+    try { pendingPorts = JSON.parse(localStorage.getItem('system.pendingPorts') || '{}') || {}; } catch (e) {}
+    function savePending() {
+        try { localStorage.setItem('system.pendingPorts', JSON.stringify(pendingPorts)); } catch (e) {}
+    }
+    function renderNotice() {
+        // Forget a change for a service that is no longer in the table.
+        const live = Object.fromEntries(rows.map(r => [r.name, r.port]));
+        Object.keys(pendingPorts).forEach(k => { if (!(k in live)) delete pendingPorts[k]; });
+        const names = Object.keys(pendingPorts);
+        $('restart-notice').classList.toggle('ac-hidden', names.length === 0);
+        $('restart-notice-text').textContent = names.length
+            ? `Saved but not applied: ${names.map(n => `${n} \u2192 ${live[n] || pendingPorts[n]}`).join(', ')}. The service keeps listening on its old port until the system restarts.`
+            : '';
+    }
+    $('btn-notice-restart').addEventListener('click', () => acModal.open('modal-restart'));
+
+    let restarting = false;   // once set, the port table is gone and the server is going down
+
+    async function load() {
+        if (restarting) return;
+        try {
+            const res = await fetch('/api/system/ports');
+            const cfg = await res.json();
+            if (!res.ok || cfg.error) throw new Error(cfg.error || `HTTP ${res.status}`);
+            owners = cfg.PORT_OWNERS || {};
+            const status = cfg.STATUS || {};
+            rows = Object.entries(cfg.API_PORTS || {}).map(([name, port]) => ({ name, port: String(port), status: status[name] }));
+        } catch (err) {
+            console.error(err);
+            ToastManager.error('Could not load ports', err.message);
+            rows = [];
+        }
+        $('loading').classList.add('ac-hidden');
+        render();
+        renderNotice();
+        scheduleFast();
+    }
+
+    function render() {
+        $('empty').classList.toggle('ac-hidden', rows.length > 0);
+        $('card').classList.toggle('ac-hidden', rows.length === 0);
+        const pages = Math.max(1, Math.ceil(rows.length / pageSize));
+        page = Math.min(page, pages - 1);
+        const slice = rows.slice(page * pageSize, page * pageSize + pageSize);
+
+        $('tbody').innerHTML = slice.map((r, i) => `
+            <tr>
+                <td>${page * pageSize + i + 1}</td>
+                <td class="left">${esc(r.name)}</td>
+                <td class="left">${esc(r.port)}</td>
+                <td>${badge(r.status)}</td>
+                <td>
+                    <div class="ac-pill-wrap" style="display:inline-block;">
+                        <button class="ac-kebab" data-menu title="More"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
+                        <div class="ac-menu right" hidden style="min-width:140px;">
+                            <button data-edit="${esc(r.name)}"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>Edit</button>
+                        </div>
+                    </div>
+                </td>
+            </tr>`).join('');
+
+        $('page-info').textContent = rows.length ? `${page * pageSize + 1}-${page * pageSize + slice.length} of ${rows.length}` : '';
+        $('page-prev').disabled = page === 0;
+        $('page-next').disabled = page >= pages - 1;
+
+        const tbody = $('tbody');
+        tbody.querySelectorAll('[data-menu]').forEach(b => b.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const m = b.nextElementSibling, open = m.hidden;
+            document.querySelectorAll('.ac-menu').forEach(x => { x.hidden = true; });
+            m.hidden = !open;
+            if (open) placeRowMenu(b, m);
+        }));
+        tbody.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => openPort(b.dataset.edit)));
+    }
+
+    // The table sits in an overflow-x:auto wrapper, which also clips vertically, so an
+    // absolutely-positioned menu on the last row was cut off at the card's bottom edge.
+    // Pin it to the viewport instead, and open it upward when there's no room below.
+    function placeRowMenu(btn, menu) {
+        const r = btn.getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.right = `${window.innerWidth - r.right}px`;
+        menu.style.left = 'auto';
+        const h = menu.offsetHeight;
+        const below = r.bottom + 6;
+        menu.style.top = `${below + h > window.innerHeight - 8 ? Math.max(8, r.top - 6 - h) : below}px`;
+    }
+    const closeRowMenus = () => $('tbody').querySelectorAll('.ac-menu').forEach(x => { x.hidden = true; });
+    window.addEventListener('resize', closeRowMenus);
+    document.addEventListener('scroll', (e) => {
+        if (!(e.target.closest && e.target.closest('.ac-menu'))) closeRowMenus();
+    }, true);
+
+    $('page-prev').addEventListener('click', () => { page--; render(); });
+    $('page-next').addEventListener('click', () => { page++; render(); });
+    $('btn-page-size').addEventListener('click', (e) => { e.stopPropagation(); $('page-size-menu').hidden = !$('page-size-menu').hidden; });
+    $('page-size-menu').querySelectorAll('[data-size]').forEach(b => b.addEventListener('click', () => {
+        pageSize = Number(b.dataset.size);
+        $('page-size-val').textContent = pageSize;
+        $('page-size-menu').hidden = true;
+        page = 0;
+        render();
+    }));
+
+    // ---- Add / Edit ----
+    function openPort(name) {
+        document.querySelectorAll('.ac-menu').forEach(x => { x.hidden = true; });
+        editing = name;
+        const row = rows.find(r => r.name === name);
+        $('port-title').textContent = 'Edit Port';
+        $('p-name').value = name || '';
+        $('p-name').disabled = !!name;
+        $('p-port').value = row ? row.port : '';
+        $('p-hint').textContent = '';
+        $('p-restart-note').style.display = name ? '' : 'none';
+        acModal.open('modal-port');
+        (name ? $('p-port') : $('p-name')).focus();
+    }
+
+    // Flag a clash with another service in the table right away: a service
+    // that hasn't been delivered yet has no listener, so check-port alone says "free".
+    let hintTimer = null;
+    $('p-port').addEventListener('input', () => {
+        clearTimeout(hintTimer);
+        const v = $('p-port').value.trim();
+        const hint = $('p-hint');
+        const owner = owners[v];
+        const self = editing || $('p-name').value.trim();
+        if (!v) { hint.textContent = ''; return; }
+        if (Number(v) < 1024 || Number(v) > 65535) { hint.style.color = '#c81e1e'; hint.textContent = 'Port must be between 1024 and 65535'; return; }
+        if (owner && owner !== self) { hint.style.color = '#c81e1e'; hint.textContent = `Already used by ${owner}`; return; }
+        hint.style.color = '#8a8a8a'; hint.textContent = 'Checking...';
+        hintTimer = setTimeout(async () => {
+            try {
+                const d = await fetch('/api/system/check-port/' + v).then(r => r.json());
+                const busy = d.in_use || d.state === 'conflict' || d.state === 'online';
+                const mine = editing && rows.find(r => r.name === editing)?.port === v;
+                hint.style.color = busy && !mine ? '#b45309' : '#16a34a';
+                hint.textContent = busy && !mine ? `Port ${v} is currently in use${d.process ? ' by ' + d.process : ''}` : `Port ${v} is available`;
+            } catch (_) { hint.textContent = ''; }
+        }, 400);
+    });
+
+    $('form-port').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = editing || $('p-name').value.trim();
+        const port = $('p-port').value.trim();
+        const owner = owners[port];
+        if (owner && owner !== name) return ToastManager.error(`Port ${port} is already used by ${owner}`);
+        $('btn-port-save').disabled = true;
+        try {
+            const res = editing
+                ? await fetch('/api/system/ports', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ service: name, port }) })
+                : await fetch('/api/system/ports/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'API_PORTS', name, port }) });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || data.detail || `HTTP ${res.status}`);
+            acModal.close('modal-port');
+            if (editing) {
+                pendingPorts[name] = port;
+                savePending();
+                ToastManager.info('Port saved, not applied yet', 'Restart the system for the new port to take effect.', 8000);
+            } else {
+                ToastManager.success('Port added');
+            }
+            load();
+        } catch (err) {
+            ToastManager.error('Could not save port', err.message);
+        } finally { $('btn-port-save').disabled = false; }
+    });
+
+    // ---- Restart ----
+    $('btn-restart').addEventListener('click', () => acModal.open('modal-restart'));
+    $('btn-confirm-restart').addEventListener('click', async (e) => {
+        e.currentTarget.disabled = true;
+        try {
+            // login.html skips its form while sessionStorage.userData is set; after the restart
+            // the server-side session is gone, so leaving it set loops /login <-> /landing forever.
+            sessionStorage.removeItem('userData');
+            pendingPorts = {}; savePending();
+            const resp = await fetch('/api/system/restart/frontend', { method: 'POST' });
+            if (!resp.ok) throw new Error('Restart failed');
+            // The restart marker makes menubar_app open a fresh window once the frontend is back,
+            // except over a remote tunnel, where this tab has to keep retrying on its own.
+            const viaRemote = typeof REMOTE_PREFIX !== 'undefined' && REMOTE_PREFIX !== '/';
+            // Only the page content is swapped: the sidebar and breadcrumb stay, so it is
+            // clear which screen is busy.
+            restarting = true;
+            acModal.close('modal-restart');
+            document.querySelector('.ac-main .ac-page').innerHTML = `
+                <div class="ac-busy" role="status" aria-live="polite">
+                    <div class="ac-spinner ac-spinner-lg"></div>
+                    <h1 class="ac-busy-title">Restarting port. This may take a few moments...</h1>
+                    <p class="ac-busy-sub">${viaRemote
+                        ? 'The store machine is restarting. The remote connection will drop for a moment and reconnect by itself.'
+                        : 'Please keep this page open until the process is complete.'}</p>
+                </div>`;
+            window.returnToLoginWhenBack();
+        } catch (err) {
+            e.currentTarget.disabled = false;
+            ToastManager.error('Could not restart', 'Please try again');
+        }
+    });
+
+    load();
+    setInterval(() => { if (document.querySelector('.ac-modal:not([hidden])') == null) load(); }, 30000);
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,14 @@
+[Unit]
+Description=AI Camera Admin - Backend (:8011)
+After=network.target mysql.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/advice/python_server/ai-camera-admin/backend
+ExecStart=/home/ubuntu/advice/python_server/ai-camera-admin/backend/.venv/bin/python app_ai_camera_backend.py
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,156 @@
+<!-- templates/base.html -->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI Camera{% endblock %}</title>
+    <!-- We don't need Tailwind CDN anymore, our own CSS covers it -->
+    <link rel="stylesheet" href="{{ url_for('ai_camera.static', filename='css/layout.css') }}">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+
+    <!-- CORRECTED BLOCK: Only one 'head' block is allowed. -->
+    {% block head %}
+    <!-- Child templates can add extra head content here. -->
+    <!-- We add the Chart.js script required by dashboard.html here. -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {% endblock %}
+</head>
+
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <a href="{{ url_for('ai_camera.landing_page') }}" class="sidebar-header">
+                    <div class="logo">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z">
+                            </path>
+                        </svg>
+                    </div>
+                    <div class="title">
+                        <h1>AI Camera</h1>
+                        <p>{% if config.SUPPORT_MODE %}Support Portal{% else %}Admin Portal{% endif %}</p>
+                    </div>
+                </a>
+                <nav class="nav-section">
+                    <h2>Platform</h2>
+                    <a href="{{ url_for('ai_camera.dashboard_page') }}"
+                        class="nav-link {% if request.path == url_for('ai_camera.dashboard_page') %}active{% endif %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                        <span>Dashboard</span>
+                    </a>
+                    <a href="{{ url_for('ai_camera.users_page') }}"
+                        class="nav-link {% if request.path == url_for('ai_camera.users_page') %}active{% endif %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>ดูข้อมูลผู้ใช้</span>
+                    </a>
+                    <a href="{{ url_for('ai_camera.add_user_page') }}"
+                        class="nav-link {% if request.path == url_for('ai_camera.add_user_page') %}active{% endif %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="8.5" cy="7" r="4"></circle>
+                            <line x1="20" y1="8" x2="20" y2="14"></line>
+                            <line x1="17" y1="11" x2="23" y2="11"></line>
+                        </svg>
+                        <span>เพิ่มผู้ใช้</span>
+                    </a>
+                    
+                    
+                    <hr class="border-gray-700 my-2">
+                </nav>
+{% if not config.SUPPORT_MODE %}
+                <nav class="nav-section">
+                    <h2>Configuration</h2>
+                    <a href="{{ url_for('ai_camera.manage_service_page') }}"
+                        class="nav-link {% if request.path == url_for('ai_camera.manage_service_page') %}active{% endif %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z">
+                            </path>
+                        </svg>
+                        <span>จัดการบริการ</span>
+                    </a>
+                    <a href="{{ url_for('ai_camera.manage_package_page') }}"
+                        class="nav-link {% if request.path == url_for('ai_camera.manage_package_page') %}active{% endif %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            class="lucide lucide-package-icon lucide-package">
+                            <path
+                                d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" />
+                            <path d="M12 22V12" />
+                            <polyline points="3.29 7 12 12 20.71 7" />
+                            <path d="m7.5 4.27 9 5.15" />
+                        </svg>
+                        <span>จัดการแพ็คเกจ</span>
+                    </a>
+                    <a href="{{ url_for('ai_camera.version_manager_page') }}"
+                        class="nav-link {% if request.path == url_for('ai_camera.version_manager_page') %}active{% endif %}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <span>จัดการเวอร์ชั่น</span>
+                    </a>
+                </nav>
+{% endif %}
+            </div>
+            <div class="user-profile">
+                <div class="avatar">A</div>
+                <div class="user-info">
+                    <p class="name">admin</p>
+                    <p class="email">admin@advice.com</p>
+                </div>
+                <!-- เอาปุ่มอัพโหลด .zip ออก: มันเปิดหน้าต่างเลือกไฟล์ทันทีที่กด
+                     ซึ่งไม่ใช่ทางที่ใช้แล้ว เวอร์ชันมาจาก Bitbucket ผ่าน build farm
+                     (หน้าจัดการเวอร์ชัน) อย่างเดียว -->
+
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+
+
+    <!-- Client Update Modal (Removed Git Modal) -->
+
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            
+            const showToast = (message, isError = false) => {
+                Toastify({ text: message, duration: 3000, close: true, gravity: "top", position: "center", style: { background: isError ? "#DC2626" : "#16A34A" } }).showToast();
+            };
+
+
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
