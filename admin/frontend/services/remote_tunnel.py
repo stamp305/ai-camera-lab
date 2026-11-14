@@ -168,7 +168,17 @@ def _heartbeat_loop(session: "_Session") -> None:
     while not session.stop_heartbeat.wait(HEARTBEAT_INTERVAL):
         with _lock:
             current = _sessions.get(session.client_id)
-        if current is not session or not session.alive():
+        if current is not session:
+            return
+        if not session.alive():
+            # Past its 30 minutes: close it, which ends every stream still flowing
+            # (a live camera view keeps sending, so it would never go idle by itself).
+            close_session(session.client_id)
+            try:
+                from services import audit_log
+                audit_log.record("remote_expired", session.client_id)
+            except Exception:
+                pass
             return
 
         quiet = time.time() - session.last_seen

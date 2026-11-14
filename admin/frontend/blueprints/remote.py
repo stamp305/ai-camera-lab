@@ -6,7 +6,7 @@
                  -> emit "open_remote" to the branch over its Socket.IO link
                  -> branch says hello with the token on that same link (TLS)
                  -> answer: a one-use enter URL on the remote origin
-    branch UI    <remote origin>/remote/<client_id>/...  (remote_origin.py)
+    branch UI    <remote origin>/ai-camera/remote/<client_id>/...  (remote_origin.py)
 
 The branch's pages never load from this origin: see remote_origin.py for why.
 Every open, close and failure goes to the audit log (services/audit_log).
@@ -37,7 +37,7 @@ def _remote_origin() -> str:
 
 def _enter_url(client_id: str) -> str:
     ticket = remote_tunnel.mint_enter_ticket(client_id)
-    return f"{_remote_origin()}/remote/{client_id}/__enter?t={ticket}"
+    return f"{_remote_origin()}/ai-camera/remote/{client_id}/__enter?t={ticket}"
 
 
 @bp.route("/remote")

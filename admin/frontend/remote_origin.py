@@ -13,7 +13,7 @@ Who gets in:
   - only callers from the office IPs, like the admin UI (gate.py);
   - only a browser holding the viewer key of the branch's live session. The
     admin page gets a one-use enter ticket when it opens the session
-    (blueprints/remote.py); /remote/<id>/__enter trades it for an HttpOnly,
+    (blueprints/remote.py); /ai-camera/remote/<id>/__enter trades it for an HttpOnly,
     SameSite=Strict cookie scoped to that branch's path;
   - only framed by the admin page itself (CSP frame-ancestors).
 
@@ -24,6 +24,7 @@ process.
 from __future__ import annotations
 
 import re
+import time
 import uuid
 from typing import Dict, Iterator, Tuple
 from urllib.parse import urlsplit
@@ -35,6 +36,10 @@ from gate import client_ip
 from services import audit_log, remote_tunnel
 
 _VIEWER_COOKIE = "aicam_rv"
+# The branch UI finds out it is being viewed remotely from this path
+# (REMOTE_PREFIX in its app.js) and puts it in front of its own requests, so it
+# stays the prototype's path; the origin, not the path, is what keeps it apart.
+_PATH = "/ai-camera/remote"
 _CLIENT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 _HOP_BY_HOP = frozenset({
@@ -52,7 +57,7 @@ remote_app = Flask(__name__)
 
 
 def _prefix_for(client_id: str) -> str:
-    return f"/remote/{client_id}/"
+    return f"{_PATH}/{client_id}/"
 
 
 def _admin_origin() -> str:
@@ -150,7 +155,7 @@ def _after(resp: Response) -> Response:
     return _security_headers(resp)
 
 
-@remote_app.route("/remote/<client_id>/__enter")
+@remote_app.route(f"{_PATH}/<client_id>/__enter")
 def enter(client_id: str):
     """Trade the one-use ticket from the admin page for the viewer cookie."""
     if not _CLIENT_ID_RE.match(client_id):
@@ -166,9 +171,9 @@ def enter(client_id: str):
     return resp
 
 
-@remote_app.route("/remote/<client_id>/", defaults={"subpath": ""},
+@remote_app.route(f"{_PATH}/<client_id>/", defaults={"subpath": ""},
                   methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
-@remote_app.route("/remote/<client_id>/<path:subpath>",
+@remote_app.route(f"{_PATH}/<client_id>/<path:subpath>",
                   methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
 def proxy(client_id: str, subpath: str):
     """Every request of the branch's page goes down the Socket.IO tunnel."""
@@ -194,15 +199,42 @@ def proxy(client_id: str, subpath: str):
     # HTML is read whole to put <base> in; pages are small, streams are not HTML.
     if content_type.startswith("text/html"):
         body = _rewrite_html(b"".join(stream), client_id)
+        headers.append(("Cache-Control", "no-store"))
         return Response(body, status=status, headers=headers, content_type=content_type)
+
+    # A camera's live view shows the people in a store. This origin keeps no frame:
+    # they pass through, the browser is told not to store them, and the session's
+    # end (30 minutes, or a close) cuts the stream. Who watched which camera, from
+    # when to when, goes on record.
+    live = content_type.startswith(_LIVE_TYPES)
+    camera = _camera_of(subpath) if live else None
+    if live:
+        headers.append(("Cache-Control", "no-store"))
+        audit_log.record("live_view_start", client_id, camera)
 
     @stream_with_context
     def relay() -> Iterator[bytes]:
+        started, sent = time.time(), 0
         try:
             for chunk in stream:
+                sent += len(chunk)
                 yield chunk
         finally:
             # The viewer closed the tab or switched camera: stop the branch's source.
             remote_tunnel.abort_request(client_id, stream_id)
+            if live:
+                audit_log.record("live_view_end", client_id, camera,
+                                 seconds=round(time.time() - started, 1), bytes=sent)
 
     return Response(relay(), status=status, headers=headers, content_type=content_type)
+
+
+_LIVE_TYPES = ("multipart/x-mixed-replace", "text/event-stream")
+# /api/svc/<service>/stream/<camera> — the Live Display's view of one camera
+_STREAM_RE = re.compile(r"(?:^|/)stream/([A-Za-z0-9_.-]+)")
+
+
+def _camera_of(subpath: str) -> str:
+    """The camera a live view is of, for the audit entry (path only, no query)."""
+    match = _STREAM_RE.search(subpath)
+    return match.group(1) if match else subpath.split("?", 1)[0]

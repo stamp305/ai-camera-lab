@@ -64,6 +64,8 @@
       <strong id="current-name" style="font-size:13px;">ยังไม่ได้เลือกสาขา</strong>
       <span class="chip" id="current-state">—</span>
       <span class="sep"></span>
+      <button class="btn btn-secondary" id="btn-live" style="padding:4px 10px;" hidden
+              title="หน้า Live Display ของสาขา — ทุกการดูกล้องถูกบันทึกว่าใครดูกล้องไหน นานเท่าไร">ดูกล้องสด</button>
       <button class="btn btn-secondary" id="btn-full" style="padding:4px 10px;" hidden>เต็มจอ</button>
       <button class="btn btn-secondary" id="btn-reload" style="padding:4px 10px;" hidden>โหลดใหม่</button>
       <button class="btn" id="btn-close" style="padding:4px 10px; background:#dc2626; color:#fff;" hidden>ตัดการเชื่อมต่อ</button>
@@ -86,6 +88,7 @@ const nameEl = document.getElementById('current-name');
 const stateEl = document.getElementById('current-state');
 const btnReload = document.getElementById('btn-reload');
 const btnFull = document.getElementById('btn-full');
+const btnLive = document.getElementById('btn-live');
 const mainEl = document.querySelector('.remote-main');
 const btnClose = document.getElementById('btn-close');
 const onlyOnline = document.getElementById('only-online');
@@ -169,6 +172,7 @@ async function openRemote(code) {
     frame.hidden = false;
     emptyEl.hidden = true;
     btnReload.hidden = false;
+    btnLive.hidden = false;
     btnFull.hidden = false;
     btnClose.hidden = false;
     refreshState();
@@ -211,6 +215,11 @@ document.addEventListener('fullscreenchange', () => {
   btnFull.textContent = document.fullscreenElement ? 'ออกจากเต็มจอ' : 'เต็มจอ';
 });
 
+// The branch's Live Display page, inside the same remote session.
+btnLive.addEventListener('click', () => {
+  if (remoteBase) frame.src = remoteBase + 'display';
+});
+
 btnReload.addEventListener('click', () => {
   if (!current) return;
   // The iframe is another origin now, so this page cannot reload it in place:
@@ -226,6 +235,7 @@ btnClose.addEventListener('click', async () => {
   frame.hidden = true;
   emptyEl.hidden = false;
   btnReload.hidden = true;
+  btnLive.hidden = true;
   btnFull.hidden = true;
   btnClose.hidden = true;
   nameEl.textContent = 'ยังไม่ได้เลือกสาขา';
