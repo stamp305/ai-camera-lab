@@ -23,6 +23,12 @@
   .remote-bar .chip { font-size:13px; padding:4px 11px; }
   .remote-bar .bar-btn { padding:7px 14px; font-size:14px; }
   .remote-wrap.side-hidden .remote-side { display:none; }
+  .side-toggle { align-self:center; flex:none; width:24px; height:56px; margin:0 -12px; z-index:2;
+                 display:flex; align-items:center; justify-content:center; padding:0;
+                 background:#fff; border:1px solid #e5e7eb; border-radius:12px; cursor:pointer;
+                 color:#4b5563; font-size:18px; line-height:1; box-shadow:0 1px 4px rgba(0,0,0,.08); }
+  .side-toggle:hover { background:#f3f4f6; color:#111827; }
+  .side-toggle:focus-visible { outline:2px solid #2563eb; outline-offset:2px; }
   .remote-bar .sep { flex:1; }
   .chip { font-size:12px; padding:3px 9px; border-radius:999px; background:#f3f4f6; color:#374151; }
   #remote-frame { flex:1; width:100%; border:0; background:#fff; }
@@ -61,12 +67,12 @@
     </header>
     <div class="remote-list" id="branch-list"></div>
   </aside>
+  <button class="side-toggle" id="btn-side" type="button" aria-controls="remote-side"
+          aria-expanded="true" aria-label="ย่อรายชื่อสาขา" title="ย่อรายชื่อสาขา">&lsaquo;</button>
 
   <section class="remote-main">
     <div class="bar-hotzone" id="bar-hotzone"></div>
     <div class="remote-bar">
-      <button class="btn btn-secondary bar-btn" id="btn-side" type="button" aria-controls="remote-side"
-              aria-expanded="true" title="ซ่อน/แสดงรายชื่อสาขา">ซ่อนรายชื่อสาขา</button>
       <strong id="current-name" class="bar-name">ยังไม่ได้เลือกสาขา</strong>
       <span class="chip" id="current-state">—</span>
       <span class="sep"></span>
@@ -99,7 +105,9 @@ const btnSide = document.getElementById('btn-side');
 const wrapEl = document.querySelector('.remote-wrap');
 function setSideHidden(hidden) {
   wrapEl.classList.toggle('side-hidden', hidden);
-  btnSide.textContent = hidden ? 'แสดงรายชื่อสาขา' : 'ซ่อนรายชื่อสาขา';
+  btnSide.innerHTML = hidden ? '&rsaquo;' : '&lsaquo;';
+  const label = hidden ? 'ขยายรายชื่อสาขา' : 'ย่อรายชื่อสาขา';
+  btnSide.title = label; btnSide.setAttribute('aria-label', label);
   btnSide.setAttribute('aria-expanded', String(!hidden));
   try { localStorage.setItem('remote.sideHidden', hidden ? '1' : '0'); } catch (e) {}
 }
