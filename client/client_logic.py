@@ -1054,6 +1054,12 @@ def _socket_auth():
     otherwise go out as the old one here and the new one in identify — and
     the server drops a session whose two codes differ.
     """
+    lab_code = os.environ.get("AICAM_LAB_ACTIVATE_ID", "").strip()
+    if lab_code:
+        # ai-camera-lab demo (see load_config): connect as the same test code that
+        # identify names, and without this Mac's Device Key, which belongs to its
+        # real code — the mock admin trusts keyless branches, a real one does not.
+        return {"activation_code": lab_code}
     try:
         code = device_identity.activation_code() or client_info.get("activateID")
     except Exception:
@@ -1900,6 +1906,14 @@ def load_config():
     except Exception as e:
         logger.error(f"[CLIENT] Could not read identity store: {e}")
         client_info = dict(client_info)
+    # ai-camera-lab demo only: run this Mac as another branch's test record against
+    # the mock admin, in memory — the identity store (the real activation) is never
+    # written. A real admin checks the Device Key bound to the code, so this cannot
+    # stand in for a branch there.
+    lab_code = os.environ.get("AICAM_LAB_ACTIVATE_ID", "").strip()
+    if lab_code:
+        logger.warning("[CLIENT] AICAM_LAB_ACTIVATE_ID set: identifying with a lab test code, not this Mac's activation")
+        client_info = {**client_info, "activateID": lab_code}
     _export_identity_env()
     return client_info
 
@@ -1948,6 +1962,13 @@ _KEY_REFRESH_LOCK = threading.Lock()
 
 def _refresh_device_key_async(reason: str):
     """Ask the admin for a Device Key in the background (never blocks the socket thread)."""
+    if os.environ.get("AICAM_LAB_ACTIVATE_ID", "").strip():
+        # Under a lab test code (load_config) the request would go out with this
+        # Mac's real code, which the mock admin does not know; its 404 would pause
+        # key requests and connects for a day in the real identity store.
+        logger.info(f"[CLIENT] Device Key request skipped under a lab test code ({reason})")
+        return
+
     def worker():
         if not _KEY_REFRESH_LOCK.acquire(blocking=False):
             return

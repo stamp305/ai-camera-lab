@@ -39,6 +39,17 @@ LOG_ROOTS = ("log", "logs")
 # โฟลเดอร์ลูกชั้นบนสุดที่ต้องกันไว้ต่อ root — ปัจจุบันมีแค่ log/monitor_snapshots
 # (เก็บภาพจากกล้อง ไม่ใช่ log ไฟล์ และมีขนาดใหญ่เกินจะ list/อ่านผ่านช่องทางนี้)
 _EXCLUDED_TOP_SUBDIR = {"log": "monitor_snapshots"}
+# Only text log files go to the admin. log/ also holds camera pictures outside
+# monitor_snapshots (monitor_shadow_reports/<day>/*_intrusion_*.jpg: people in
+# the store), and a folder-by-folder exclusion missed them, so this is a list of
+# what may go rather than of what may not: a name with ".log" in it (rotated
+# client.log.2026-11-13 and set-aside .sealed files included) or a text extension.
+_LOG_EXTENSIONS = (".jsonl", ".json", ".txt")
+
+
+def _is_log_file(name):
+    low = name.lower()
+    return ".log" in low or low.endswith(_LOG_EXTENSIONS)
 
 MAX_LIST_ENTRIES = 2000
 # engineio frame ประมาณ ~1MB และชื่อไฟล์ภาษาไทยโดน JSON escape เป็น \uXXXX ทำให้
@@ -91,7 +102,7 @@ def _walk_root(root_dir, root_name):
         dirnames[:] = keep
 
         for fn in filenames:
-            if fn.startswith('.'):
+            if fn.startswith('.') or not _is_log_file(fn):
                 continue
             full = os.path.join(dirpath, fn)
             if os.path.islink(full) or not os.path.isfile(full):
@@ -264,6 +275,8 @@ def read_log(base_dir, payload):
         if full_path is None:
             return _err("bad_path")
 
+        if not _is_log_file(os.path.basename(full_path)):
+            return _err("bad_path")
         if not os.path.isfile(full_path):
             return _err("not_found")
 

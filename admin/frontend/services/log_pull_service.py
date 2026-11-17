@@ -208,9 +208,19 @@ def _validate_rel_path(path: str) -> None:
         raise LogPullError("bad_path", 400, f"path traversal not allowed: {path!r}")
 
 
+def _is_log_file(name: str) -> bool:
+    """Text log files only (the branch's log_agent keeps to the same list)."""
+    low = name.lower()
+    return ".log" in low or low.endswith((".jsonl", ".json", ".txt"))
+
+
 def _check_snapshot_guard(root: str, path: str) -> None:
     if root == _BLOCKED_SNAPSHOT_ROOT and path.split("/", 1)[0].casefold() == _BLOCKED_SNAPSHOT_PREFIX:
         raise LogPullError("bad_path", 400, f"pulling camera snapshots via root {root!r} is not allowed: {path!r}")
+    # Camera pictures also sit elsewhere under log/ (monitor_shadow_reports/<day>/*.jpg);
+    # a branch on an older client still lists them, so the admin refuses them too.
+    if not _is_log_file(path.rsplit("/", 1)[-1]):
+        raise LogPullError("bad_path", 400, f"only text log files may be pulled: {path!r}")
 
 
 # ---------------------------------------------------------------------------
