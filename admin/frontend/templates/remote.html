@@ -17,8 +17,12 @@
   .dot.on { background:#10b981; } .dot.off { background:#d1d5db; } .dot.live { background:#dc2626; }
   .remote-main { flex:1; display:flex; flex-direction:column;
                  background:#fff; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; }
-  .remote-bar { display:flex; align-items:center; gap:10px; padding:8px 12px;
+  .remote-bar { display:flex; align-items:center; gap:12px; padding:12px 16px;
                 border-bottom:1px solid #f3f4f6; flex-wrap:wrap; }
+  .remote-bar .bar-name { font-size:16px; font-weight:600; }
+  .remote-bar .chip { font-size:13px; padding:4px 11px; }
+  .remote-bar .bar-btn { padding:7px 14px; font-size:14px; }
+  .remote-wrap.side-hidden .remote-side { display:none; }
   .remote-bar .sep { flex:1; }
   .chip { font-size:12px; padding:3px 9px; border-radius:999px; background:#f3f4f6; color:#374151; }
   #remote-frame { flex:1; width:100%; border:0; background:#fff; }
@@ -47,7 +51,7 @@
 </div>
 
 <div class="remote-wrap">
-  <aside class="remote-side">
+  <aside class="remote-side" id="remote-side">
     <header>
       <strong style="font-size:13px;">สาขา</strong>
       <span id="online-count" style="color:#6b7280; font-size:12px;"></span>
@@ -61,14 +65,16 @@
   <section class="remote-main">
     <div class="bar-hotzone" id="bar-hotzone"></div>
     <div class="remote-bar">
-      <strong id="current-name" style="font-size:13px;">ยังไม่ได้เลือกสาขา</strong>
+      <button class="btn btn-secondary bar-btn" id="btn-side" type="button" aria-controls="remote-side"
+              aria-expanded="true" title="ซ่อน/แสดงรายชื่อสาขา">ซ่อนรายชื่อสาขา</button>
+      <strong id="current-name" class="bar-name">ยังไม่ได้เลือกสาขา</strong>
       <span class="chip" id="current-state">—</span>
       <span class="sep"></span>
-      <button class="btn btn-secondary" id="btn-live" style="padding:4px 10px;" hidden
+      <button class="btn btn-secondary bar-btn" id="btn-live" hidden
               title="หน้า Live Display ของสาขา — ทุกการดูกล้องถูกบันทึกว่าใครดูกล้องไหน นานเท่าไร">ดูกล้องสด</button>
-      <button class="btn btn-secondary" id="btn-full" style="padding:4px 10px;" hidden>เต็มจอ</button>
-      <button class="btn btn-secondary" id="btn-reload" style="padding:4px 10px;" hidden>โหลดใหม่</button>
-      <button class="btn" id="btn-close" style="padding:4px 10px; background:#dc2626; color:#fff;" hidden>ตัดการเชื่อมต่อ</button>
+      <button class="btn btn-secondary bar-btn" id="btn-full" hidden>เต็มจอ</button>
+      <button class="btn btn-secondary bar-btn" id="btn-reload" hidden>โหลดใหม่</button>
+      <button class="btn bar-btn" id="btn-close" style="background:#dc2626; color:#fff;" hidden>ตัดการเชื่อมต่อ</button>
     </div>
     <div class="empty" id="empty-state">เลือกสาขาทางซ้ายเพื่อเริ่มรีโมต</div>
     <!-- The branch UI comes from its own origin (remote_origin.py); sandbox also keeps it from
@@ -89,6 +95,16 @@ const stateEl = document.getElementById('current-state');
 const btnReload = document.getElementById('btn-reload');
 const btnFull = document.getElementById('btn-full');
 const btnLive = document.getElementById('btn-live');
+const btnSide = document.getElementById('btn-side');
+const wrapEl = document.querySelector('.remote-wrap');
+function setSideHidden(hidden) {
+  wrapEl.classList.toggle('side-hidden', hidden);
+  btnSide.textContent = hidden ? 'แสดงรายชื่อสาขา' : 'ซ่อนรายชื่อสาขา';
+  btnSide.setAttribute('aria-expanded', String(!hidden));
+  try { localStorage.setItem('remote.sideHidden', hidden ? '1' : '0'); } catch (e) {}
+}
+btnSide.addEventListener('click', () => setSideHidden(!wrapEl.classList.contains('side-hidden')));
+try { if (localStorage.getItem('remote.sideHidden') === '1') setSideHidden(true); } catch (e) {}
 const mainEl = document.querySelector('.remote-main');
 const btnClose = document.getElementById('btn-close');
 const onlyOnline = document.getElementById('only-online');
