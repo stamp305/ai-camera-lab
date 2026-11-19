@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="th">
+  <head>
+{% include "_head.html" %}
+    <link rel="stylesheet" href="/static/css/siren.css?v={{ asset_v }}">
+    <title>3 in 1 WiFi Siren Alarm · ALITECH</title>
+  </head>
+  <body class="portal-page">
+    {% include "_sidebar.html" %}
+    <main class="portal-main">
+      <header class="portal-topbar"><span>Security / Hardware Integration / <b>3 in 1 WiFi Siren Alarm</b></span><button class="portal-bell" type="button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button></header>
+      {% include "_secnav.html" %}
+      <section class="portal-content cam-content" aria-labelledby="sr-title">
+        <a class="cam-back sr-back" href="/my-products/ai-camera/security/hardware">&lsaquo; Hardware Integration</a>
+        <div class="sr-head">
+          <div><h1 id="sr-title">ตั้งค่าไซเรนในร้าน</h1><p class="analytics-updated">Tuya · 3 in 1 WiFi Siren Alarm รุ่น A03Pro · 🔒 key ของไซเรนเก็บที่เครื่องสาขาเท่านั้น · ทุกการสแกน / ทดสอบเสียงถูกบันทึก</p></div>
+          <label class="sr-branch"><span>สาขา</span><select data-siren-branch></select></label>
+        </div>
+        <div class="siren-app" data-siren data-branch="">
+<div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo">ALI<span>TECH</span></div>
+      <div class="sidebar-company">
+        <div class="company-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round">
+            <path d="M5 12.5a10 10 0 0 1 14 0" />
+            <path d="M8.5 16a5 5 0 0 1 7 0" />
+            <circle cx="12" cy="19.5" r="1" fill="currentColor" />
+          </svg></div>
+        <div>
+          <div class="company-name">เครื่องสาขาอยู่วง</div>
+          <div class="company-role" id="net-side">…</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="stepper">
+        <div class="nav-label">ตั้งค่าไซเรน</div>
+        <button class="st" data-go="1"><span class="num">1</span>เสียบไฟ</button>
+        <button class="st" data-go="2"><span class="num">2</span>ตั้งค่าในแอป</button>
+        <button class="st" data-go="3"><span class="num">3</span>สแกน QR</button>
+        <button class="st" data-go="4"><span class="num">4</span>หาในวงแลน</button>
+        <button class="st" data-go="5"><span class="num">5</span>เสียงและทดสอบ</button>
+      </nav>
+      <div class="sidebar-bottom">🔒 key เก็บในเครื่องสาขาเท่านั้น</div>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb">Hardware Integration / Tuya / 3 in 1 WiFi Siren Alarm / <b id="crumb">เสียบไฟ</b></div>
+      <h1 class="page-title">ตั้งค่าไซเรนในร้าน</h1>
+
+      <!-- 1 -->
+      <div class="page" data-page="1">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">เสียบไฟให้ไซเรน</div>
+              <div class="panel-sub">ใช้อะแดปเตอร์ USB ทั่วไป (5V) หรือพอร์ต USB ที่จ่ายไฟได้</div>
+            </div>
+          </div>
+          <div class="grid2">
+            <ol class="how">
+              <li>เสียบสาย USB เข้าไซเรน แล้วเสียบอีกด้านเข้าอะแดปเตอร์หรือปลั๊ก</li>
+              <li>รอสักครู่ <b>ไฟสถานะกะพริบ</b> แปลว่าพร้อมให้แอปเพิ่มอุปกรณ์</li>
+              <li>ถ้าไฟไม่กะพริบ หรือเคยเพิ่มในแอปอื่นมาก่อน ให้ <b>กดปุ่มรีเซ็ตค้างประมาณ 5 วินาที</b> จนไฟกะพริบ</li>
+            </ol>
+            <div class="art"><svg width="230" height="170" viewBox="0 0 230 170" aria-hidden="true">
+                <rect x="18" y="40" width="96" height="96" rx="20" fill="#fff" stroke="#1e1e1e" stroke-width="2.5" />
+                <circle cx="66" cy="88" r="22" fill="#f3f5ff" />
+                <circle cx="66" cy="88" r="9" fill="#5c77ff" />
+                <path d="M114 100 C150 100 150 130 186 130" fill="none" stroke="#b0b0b0" stroke-width="5"
+                  stroke-linecap="round" />
+                <rect x="182" y="112" width="34" height="38" rx="8" fill="#1e1e1e" />
+                <rect x="190" y="104" width="6" height="10" fill="#8a8a8a" />
+                <rect x="202" y="104" width="6" height="10" fill="#8a8a8a" />
+                <text x="66" y="160" text-anchor="middle" font-size="12" fill="#8a8a8a"
+                  font-family="IBM Plex Sans Thai">ไฟกะพริบ = พร้อม</text>
+              </svg></div>
+          </div>
+        </div>
+        <div class="nav"><span></span><button class="btn btn-dark" data-next>เสียบแล้ว ไฟกะพริบ</button></div>
+      </div>
+
+      <!-- 2 -->
+      <div class="page" data-page="2">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">เพิ่มไซเรนในแอป Smart Life</div>
+              <div class="panel-sub">ทำบนมือถือ ใช้บัญชี Smart Life เดียวกับที่จะสแกน QR ในขั้นถัดไป</div>
+            </div>
+          </div>
+          <div class="grid2">
+            <ol class="how">
+              <li>เปิดแอป <b>Smart Life</b> กด <b>＋</b> มุมขวาบน → <b>เพิ่มอุปกรณ์</b></li>
+              <li>แอปมักเจอไซเรนเอง (ผ่านบลูทูธ) กด <b>เพิ่ม</b> ถ้าไม่เจอ เลือกหมวด <b>Security &amp; Sensor →
+                  Alarm</b></li>
+              <li>เลือก <b>Wi‑Fi 2.4 GHz วงเดียวกับเครื่องสาขา</b> แล้วใส่รหัส Wi‑Fi</li>
+              <li>รอจนแอปขึ้นว่าเพิ่มสำเร็จ ตั้งชื่อให้จำง่าย เช่น รหัสสาขา</li>
+            </ol>
+            <div>
+              <div class="tip"><b>เครื่องสาขาอยู่วง</b> <span class="mono" id="net">…</span><br>ไซเรนต้องต่อ Wi‑Fi
+                ที่ได้ IP ขึ้นต้นแบบเดียวกัน</div>
+              <div class="s-mt10 tip warn">ถ้าลบไซเรนออกจากแอปแล้วเพิ่มใหม่ key จะเปลี่ยน
+                ต้องทำขั้น 3 ใหม่</div>
+              <label class="check"><input type="checkbox" id="added"> เพิ่มในแอปเรียบร้อยแล้ว</label>
+            </div>
+          </div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><button class="btn btn-dark" data-next
+            id="next2" disabled>ถัดไป</button></div>
+      </div>
+
+      <!-- 3 -->
+      <div class="page" data-page="3">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">สแกน QR เพื่อเชื่อมบัญชี</div>
+              <div class="panel-sub">ระบบจะได้ key ของไซเรนจากบัญชีนี้ (ครั้งเดียว) แล้วเก็บไว้ในเครื่องสาขาเท่านั้น
+              </div>
+            </div>
+            <button class="btn btn-dark" id="b-qr">สร้าง QR</button>
+          </div>
+          <div id="qr"></div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><button class="btn btn-dark" data-next
+            id="next3" disabled>ถัดไป</button></div>
+      </div>
+
+      <!-- 4 -->
+      <div class="page" data-page="4">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">หาไซเรนในวงแลน</div>
+              <div class="panel-sub">ถามในวงว่า "ใครอยู่บ้าง" แล้วยืนยันตัวไซเรนด้วย key ก่อนใช้งาน</div>
+            </div>
+            <button class="btn btn-dark" id="b-scan">ค้นหาในวงแลน</button>
+          </div>
+          <div id="scan"></div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><button class="btn btn-dark" data-next
+            id="next4" disabled>ถัดไป</button></div>
+      </div>
+
+      <!-- 5 -->
+      <div class="page" data-page="5">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">ค่าในไซเรนตอนนี้</div>
+
+            </div>
+            <span class="live-at" id="live-at"></span>
+          </div>
+          <div id="live">
+            <p class="msg muted">ยังไม่ได้อ่าน</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">เสียงแจ้งเตือน</div>
+              <div class="panel-sub">ที่ไซเรนใช้ทุกครั้งที่ระบบแจ้งเตือน กดเลือกแล้วบันทึกทันที ไซเรนไม่ดังตอนเลือก
+                ได้ค่าใหม่ตอนแจ้งเตือนหรือตอนกดให้ดังครั้งถัดไป</div>
+            </div>
+          </div>
+          <div class="field-label">เสียง</div>
+          <div class="panel-seg" id="sounds"></div>
+          <div class="field-label">ระดับเสียง</div>
+          <div class="panel-seg" id="volumes"></div>
+          <div class="s-mt8 panel-sub" id="vol-note"></div>
+          <div id="sound-msg"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">ทดสอบ</div>
+              <div class="panel-sub">กดให้ดัง = เสียงที่เลือก ดังระดับเบาสุดเสมอ (ไม่ใช้ระดับเสียงที่เลือก) 1 วินาที
+                แล้วคืนระดับเสียงและเวลาเดิมของเครื่อง</div>
+            </div>
+          </div>
+          <div class="ready">
+            <div class="siren-ico" id="ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M7 18v-6a5 5 0 0 1 10 0v6" />
+                <path d="M5 21h14" />
+                <path d="M5 18h14" />
+                <path d="M12 3V2" />
+                <path d="M4.2 6.2l-.7-.7" />
+                <path d="M19.8 6.2l.7-.7" />
+              </svg></div>
+            <div>
+              <div id="ready-name" class="s-name">ไซเรน</div>
+              <div class="s-small muted" id="ready-info"></div>
+            </div>
+          </div>
+          <div class="s-mt16 row">
+            <button class="btn btn-dark btn-big" id="b-ring">กดให้ดัง</button>
+            <button class="btn btn-big" id="b-check">ทดสอบแบบไม่มีเสียง</button>
+          </div>
+          <div id="ring"></div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><span></span></div>
+      </div>
+    </main>
+  </div>
+        </div>
+      </section>
+    </main>
+    <script src="/static/js/portal-lite.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/siren.js?v={{ asset_v }}" defer></script>
+  </body>
+</html>

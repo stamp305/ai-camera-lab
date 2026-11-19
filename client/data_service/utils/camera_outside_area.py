@@ -30,8 +30,10 @@ What is kept (read_answer):
   takes polygons, so a better shape later needs no change there);
 - except a picture under 1280x720 (SMALL_PICTURE) with box confidence under SMALL_BOX_MIN:
   the contract found such boxes on shelves (AVI008, 352x288), so no area and every alert kept.
-The picture is snapshot_cache's: the NVR main stream, raw, at most 1280 wide — what the
-contract asks for. has_outdoor, the box confidence and the picture size are kept with it.
+The picture is snapshot_cache's original: the NVR main stream frame at its own size, JPEG
+quality lowered only if needed to fit 2 MB, never resized — the contract says "do not resize
+it yourself" (the server scales over 1568 px itself). Until 16 Nov 2026 the 1280-wide page tile
+was sent, so a 2560x1440 or 4 MP camera reached Jev at half its detail. has_outdoor, the box confidence and the picture size are kept with it.
 
 Never log a header: the Device Key is in it.
 """
@@ -158,7 +160,7 @@ def _wanted() -> list[tuple[str, int, tuple]]:
     known = known_channels()
     out = []
     for t in snapshot_cache._scanned_channels():
-        if t not in inside or snapshot_cache.get(*t) is None:
+        if t not in inside or snapshot_cache.beyond(*t) or snapshot_cache.get(*t) is None:
             continue
         request = asked.get(t) if t in known else ("first", None)
         if request is None:
@@ -192,7 +194,7 @@ def run_round(now: Optional[float] = None) -> int:
                 snapshot_cache.retake(ip, channel)
             except Exception as e:
                 logger.warning(f"[outdoor-area] {camera_label(ip, channel)}: new picture not taken: {type(e).__name__}")
-        jpeg = snapshot_cache.get(ip, channel)
+        jpeg = snapshot_cache.get_original(ip, channel)
         if not jpeg or len(jpeg) > MAX_JPEG:
             continue
         cam = camera_label(ip, channel)

@@ -1,0 +1,42 @@
+<aside class="portal-sidebar">
+  {% set words = (user.name or user.email.split('@')[0]).split() %}
+  {% set initials = (words[0][0] ~ (words[-1][0] if words|length > 1 else ''))|upper %}
+  <div class="portal-sidebar-head">
+    <div class="portal-brand" aria-label="Alitech AI Smart Camera">
+      <img class="portal-brand-logo" src="/static/vendor/icons/logo_aicam.png" alt="">
+      <div class="portal-brand-text">
+        <div class="portal-brand-word"><strong>ALI</strong><span>TECH</span></div>
+        <small class="portal-brand-sub">AI Smart Camera</small>
+      </div>
+    </div>
+    <button class="portal-sidebar-toggle" type="button" data-portal-sidebar-toggle aria-label="Collapse sidebar" title="Collapse sidebar"><img class="portal-toggle-open" src="/static/vendor/icons/1.svg" alt=""><img class="portal-toggle-closed" src="/static/vendor/icons/2.svg" alt=""></button>
+  </div>
+  <div class="portal-profile-wrap" data-portal-profile>
+    <button class="portal-profile" type="button" aria-expanded="false" aria-controls="portal-profile-menu" data-portal-profile-toggle>
+      <span class="portal-avatar portal-user-avatar">{{ initials }}</span>
+      <span class="portal-profile-details"><strong>{{ user.name or user.email }}</strong><small>{{ 'Alitech Admin' if user.role == 'admin' else 'Member' }}</small></span>
+      <svg class="portal-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+    </button>
+    <div class="portal-profile-menu" id="portal-profile-menu" hidden data-portal-profile-menu>
+      <div class="portal-profile-summary">
+        <span class="portal-avatar portal-profile-summary-avatar" aria-hidden="true">{{ initials }}</span>
+        <span><strong>{{ user.name or user.email }}</strong><small>{{ 'Alitech Admin' if user.role == 'admin' else 'Member' }}</small></span>
+      </div>
+      <hr class="portal-menu-divider">
+      <form method="post" action="/logout"><input type="hidden" name="_csrf" value="{{ csrf_token }}"><button class="portal-menu-item" type="submit"><img class="portal-menu-icon" src="/static/vendor/icons/Sign_out.svg" alt="">Sign out</button></form>
+    </div>
+  </div>
+  {% set sec_items = [('cctv', 'CCTV Streaming', '/my-products/ai-camera/security/cctv'), ('alerts', 'Alert & Log', '/my-products/ai-camera/security/alerts'), ('hardware', 'Hardware Integration', '/my-products/ai-camera/security/hardware')] %}
+  <nav class="portal-nav portal-dashboard-nav{% if active in ['cctv', 'alerts', 'hardware'] %} is-open{% endif %}" aria-label="Product navigation" data-security-nav>
+    <span class="portal-nav-static" aria-disabled="true" data-tooltip="Dashboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg><span class="portal-nav-label">Dashboard</span></span>
+    <span class="portal-nav-static" aria-disabled="true" data-tooltip="Analytics"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19V5M3 19h18M7 15l3-4 3 2 5-7"/></svg><span class="portal-nav-label">Analytics</span></span>
+    <button class="portal-analytics-toggle" type="button" aria-label="Security" aria-expanded="{{ 'true' if active in ['cctv', 'alerts', 'hardware'] else 'false' }}" aria-controls="portal-security-menu" data-security-toggle data-tooltip="Security"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.4 3 8.3 7 9.5 4-1.2 7-5.1 7-9.5V6l-7-3Z"/><path d="m9.5 12 1.8 1.8 3.4-3.6"/></svg><span class="portal-nav-label">Security</span><svg class="portal-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
+    <div class="portal-analytics-menu" id="portal-security-menu"{% if active not in ['cctv', 'alerts', 'hardware'] %} hidden{% endif %} data-security-menu>
+      <div class="portal-analytics-menu-heading">Security</div>
+      {% for key, title, href in sec_items %}<a class="portal-subnav{% if active == key %} is-active{% endif %}" href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ title }}</a>{% endfor %}
+    </div>
+  </nav>
+  <nav class="portal-nav portal-nav-bottom" aria-label="Account options">
+    <span class="portal-nav-static" data-tooltip="Support Center" aria-disabled="true"><img class="portal-nav-icon" src="/static/vendor/icons/Headphones.svg" alt=""><span class="portal-nav-label">Support Center</span></span>
+  </nav>
+</aside>

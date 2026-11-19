@@ -1,0 +1,54 @@
+# MediaMTX for ai-camera-lab: relays branch cameras to the Alitech admin page.
+#
+# Secure by design / PDPA:
+#   * Nothing is stored: record off, playback server off, HLS off (HLS keeps segments).
+#   * Only WebRTC: branches publish with WHIP, viewers read with WHEP (media always
+#     DTLS-SRTP), each with its own one-session token. RTSP/RTMP/SRT/HLS are off.
+#   * Every publish/read/api call is checked by the admin (authHTTPAddress): one-use
+#     session tokens bound to one random path. Paths are random, never branch names.
+#   * API listens on loopback only and also goes through the hook (admin's own key).
+#   * Lab runs the WHIP/WHEP requests over plain HTTP on the LAN (tokens visible on
+#     the wire there). Production MUST set webrtcEncryption: yes or sit behind TLS.
+
+logLevel: info
+logDestinations: [stdout]
+
+readTimeout: 10s
+writeTimeout: 10s
+
+authMethod: http
+authHTTPAddress: http://127.0.0.1:18002/ai-camera/api/live/mtx-auth
+authHTTPExclude: []
+
+api: yes
+apiAddress: 127.0.0.1:9997
+metrics: no
+pprof: no
+playback: no
+
+rtsp: no
+rtmp: no
+hls: no
+moq: no
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcEncryption: no
+# Overridden by run_media.sh (MTX_WEBRTCALLOWORIGINS) with the Alitech page origin.
+webrtcAllowOrigins: ['http://127.0.0.1:18100']
+webrtcLocalUDPAddress: :8189
+# Offer only the LAN address set by run_media.sh (MTX_WEBRTCADDITIONALHOSTS); ffmpeg's WHIP
+# takes the first candidate it gets, and an interface address it cannot reach fails it.
+webrtcIPsFromInterfaces: no
+
+srt: no
+
+pathDefaults:
+  source: publisher
+  record: no
+  overridePublisher: no
+  maxReaders: 4
+
+# No static paths: the admin adds s/<32 hex> per session through the API and removes
+# it when the session ends, so a publish to any other name has nowhere to go.
+paths: {}

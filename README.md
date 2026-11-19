@@ -9,6 +9,28 @@
 | 3 | รีโมตเข้าเว็บของสาขา (ผ่าน Socket.IO เส้นเดิม = TLS, หน้าสาขาอยู่ origin แยก) | `remote_agent.py` | `remote_tunnel` + `blueprints/remote` + `remote_origin` | ✅ ทดสอบในโปรเซส |
 | 4 | ดูกล้องสด (Live Display ผ่านท่อรีโมต, MJPEG) | หน้า Live Display (ไม่ต้องแก้) | ปุ่ม "ดูกล้องสด", audit การดู, ตัดตอนหมดเซสชัน | ✅ ทดสอบในโปรเซส |
 | 5 | สั่งอัปเดต client ผ่านแอดมิน + service เข้ารหัส (DLC) | มีแล้ว | มีแล้ว (mock admin) | ทดสอบร่วม |
+| 6 | กล้องสด/ย้อนหลังผ่าน MediaMTX + หน้า Alitech (Security) | `live_agent.py` (ffmpeg → WHIP) | `live_service` + `api_live`, `media/` (MediaMTX) | ✅ ทดสอบกับ NVR จริง |
+| 7 | ตั้งค่าไซเรน Tuya จากหน้า Alitech | `siren_setup/` (รันที่เครื่องสาขา 127.0.0.1:8767) | `api_live` → `siren_call` | ✅ จำลองเก็บ JSON |
+
+## เฟส 6–7: Alitech lab portal (`alitech-live/`)
+
+เมนู **Security** แบบ Alitech: **CCTV Streaming** (ดูสด / ย้อนหลัง 1×1 2×2 4×4, ขยายช่อง, เต็มจอ,
+เล่นแยกเวลาต่อช่อง, แถบเขียว = ช่วงที่ NVR มีคลิป), **Alert & Log** (ข้อมูลตัวอย่าง + กระโดดไปดูคลิป),
+**Hardware Integration** (Tuya → ไซเรน 5 ขั้น)
+
+```
+browser ─(session+CSRF)→ alitech-live ─(service key)→ admin ─Socket.IO→ branch: ffmpeg NVR → WHIP → MediaMTX
+browser ←──────────── WebRTC (WHEP + token ต่อเซสชัน) ─────────────── MediaMTX (ถามแอดมินทุกครั้ง)
+```
+
+รัน: `media/run_media.sh start` (สร้าง `.live.env` ครั้งแรก) → `admin/run_mock_admin.sh start` → `alitech-live/run.sh start`
+บัญชี: `cd alitech-live && python -m app.create_user <email> "<name>" admin` (เห็นหน้า Security เฉพาะ role admin)
+
+- **ไม่ขึ้น git**: `.live.env`, `alitech-live/data/` (บัญชี, audit, ภาพจริงจาก `tools/capture_frames.py`),
+  `alitech-live/app/static/vendor/` (CSS/ไอคอนของ Alitech คัดลอกจากเครื่องด้วย `fetch_assets.sh`),
+  `client/siren_setup/monitor_siren.json` + `.env` (TUYA_USER_CODE) + `.venv`
+- รหัส NVR อยู่ที่สาขาเท่านั้น (ส่งให้ ffmpeg ผ่านไฟล์ 0600), MediaMTX ไม่บันทึก, เพดานต่อสาขา: ภาพย่อ 16 / ภาพชัด 2 / ย้อนหลัง 2×2 4
+- ข้อจำกัด lab: WHIP/WHEP เป็น http ใน LAN (production ต้อง https), ffmpeg จาก Homebrew (ต้องใส่ในแอป), token ส่งภาพยังเห็นใน `ps`
 
 ## มาจากไหน
 

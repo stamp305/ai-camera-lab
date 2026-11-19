@@ -65,6 +65,9 @@ first_run() {
 
 export_env() {
     set -a; . "$HERE/.mock.env"; set +a
+    # Live camera (media/run_media.sh makes it): service key + MediaMTX API secret.
+    if [ -f "$HERE/../.live.env" ]; then set -a; . "$HERE/../.live.env"; set +a; fi
+    export AICAM_WHEP_BASE="${AICAM_WHEP_BASE:-http://$LAN_IP:8889}"
     export AI_CAMERA_ADMIN_BACKEND_PORT="$BACKEND_PORT"
     export AI_CAMERA_ADMIN_BACKEND_URL="http://127.0.0.1:$BACKEND_PORT"
     export AI_CAMERA_ADMIN_BACKEND_PUBLIC_URL="http://127.0.0.1:$BACKEND_PORT"

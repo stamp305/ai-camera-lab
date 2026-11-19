@@ -13,6 +13,8 @@ keyguard*.so
 **/.env.*
 !**/.env.example
 admin/.mock.env
+.live.env
+alitech-live/data/
 admin/backend/.builder_key
 client/data_service/configs/secure_env.pyx
 
@@ -51,3 +53,7 @@ __pycache__/
 **/.venv/
 **/.pytest_cache/
 .DS_Store
+
+# siren setup (lab): its saved device keys never go to git
+client/siren_setup/monitor_siren.json
+client/siren_setup/.venv/

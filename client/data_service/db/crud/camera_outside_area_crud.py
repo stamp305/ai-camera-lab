@@ -172,3 +172,16 @@ def read_outside_areas(ip: Optional[str] = None) -> list:
                     "wanted_at": wanted_at.isoformat(sep=" ") if wanted_at else None,
                     "answered_at": answered_at.isoformat(sep=" ") if answered_at else None})
     return out
+
+
+def forget_beyond(ip: str, count: int) -> int:
+    """Delete the rows of an NVR's channels past its own channel count (its screen, not a
+    camera: utils/snapshot_cache.beyond); returns how many."""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM camera_outside_area WHERE ip = ? AND channel > ?", (ip, int(count)))
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()

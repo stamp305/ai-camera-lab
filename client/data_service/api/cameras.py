@@ -370,6 +370,8 @@ def api_get_camera_image(
     ip: str,
     channel: int,
     cached: bool = Query(False, description="Return the picture kept since app start (Camera Selection)"),
+    original: bool = Query(False, description="With cached: the same picture at the NVR's own size, "
+                                              "as sent for Outdoor Area / Camera Placement"),
 ):
     """Get the image from a specific camera channel."""
     try:
@@ -378,7 +380,9 @@ def api_get_camera_image(
             # re-captured only by Retake picture. Missing: 404 at once — the page shows "No signal"
             # and asks again later while the prefetch keeps trying. Not fetched
             # here, or opening the page would hit the NVR for every dead camera.
-            image_bytes = snapshot_cache.get(ip, channel)
+            # original: the frame the admin server was sent (tools/show_outdoor_area.py), not shrunk.
+            image_bytes = (snapshot_cache.get_original(ip, channel) if original
+                           else snapshot_cache.get(ip, channel))
             if not image_bytes:
                 raise HTTPException(status_code=404, detail="Image not ready yet")
             # no-cache + ETag: the browser asks every time (a 304 when unchanged),
@@ -393,9 +397,9 @@ def api_get_camera_image(
         image_bytes = get_image_from_camera_digest_auth(ip, channel, username, password)
         if not image_bytes:
             # snapshot.cgi often never answers on Dahua NVRs; one RTSP frame does.
-            image_bytes = snapshot_cache.grab_rtsp_frame(ip, channel, username, password)
+            image_bytes, original = snapshot_cache.grab_rtsp_frames(ip, channel, username, password)
             if image_bytes:
-                snapshot_cache.put(ip, channel, image_bytes)
+                snapshot_cache.put(ip, channel, image_bytes, original=original)
         if not image_bytes:
             raise HTTPException(status_code=404, detail="Image not found")
 

@@ -8,7 +8,8 @@ Run on the branch machine, with the client running, from the client's folder:
     ... show_outdoor_area.py --no-open    write the pictures, do not open the folder
     ... show_outdoor_area.py --port 8000  the data service's port, when it is not found by itself
 
-What it draws (from GET /cameras/outside-area and /cameras/image on the local data service):
+What it draws (from GET /cameras/outside-area and /cameras/image on the local data service),
+on the picture the admin server was sent, at its own size (see picture()):
 - red, solid:      the area in use: anyone whose feet are in it is not counted at night
 - yellow, dashed:  Jev's box that is NOT used, with the reason (no outside in view, or a small
                    picture with a box Jev was not sure of)
@@ -48,6 +49,18 @@ def data_service_port() -> int:
 def get(url: str, timeout: float = 30.0) -> bytes:
     with urllib.request.urlopen(url, timeout=timeout) as r:   # loopback only
         return r.read()
+
+
+def picture(base: str, ip: str, channel: int) -> bytes:
+    """The picture the admin server was sent: the kept one at the NVR's own size (a client from
+    d65a825 on; an older one answers with its 1280-wide page picture). Only when nothing is kept,
+    a new one from the NVR, which can be its blurrier snapshot or time out."""
+    try:
+        return get(f"{base}/image/{ip}/{channel}?cached=true&original=true")
+    except urllib.error.HTTPError as e:
+        if e.code != 404:
+            raise
+    return get(f"{base}/image/{ip}/{channel}")
 
 
 def why_not(row: dict) -> str:
@@ -142,12 +155,12 @@ def main() -> int:
         print(f"{r['ip']} ch{r['channel']:02d}: has_outdoor {r.get('has_outdoor')}, box {r.get('box_confidence')}, "
               f"{used}, {r.get('state')}")
         try:
-            img = draw(r, get(f"{base}/image/{r['ip']}/{r['channel']}"))
+            img = draw(r, picture(base, r["ip"], r["channel"]))
         except Exception as e:
             print(f"   no picture ({type(e).__name__})")
             continue
         if img is not None:
-            cv2.imwrite(os.path.join(out, name + ".jpg"), img)
+            cv2.imwrite(os.path.join(out, name + ".jpg"), img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     print(f"\nPictures: {out}\n(they show the shop: delete the folder when done)")
     if not args.no_open and sys.platform == "darwin":
         subprocess.run(["open", out], check=False)

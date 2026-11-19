@@ -50,6 +50,12 @@ MAX_AUTO_TRIES = 5          # failed background tries (1+2+4+8+16 min apart), th
 BLACK_LEVEL = 24            # grey value below which a pixel counts as black
 
 _cache: dict[tuple[str, int], bytes] = {}
+# The same frame at the NVR's own size, for the admin server (Outdoor Area): its contract says
+# "send the frame as the NVR gives it, do not resize it yourself"; the 1280-wide copy above is
+# the page's tile. Only RTSP grabs have one; a snapshot.cgi picture is the NVR's own already.
+_original: dict[tuple[str, int], bytes] = {}
+ORIGINAL_MAX_BYTES = 2 * 1024 * 1024          # the contract's limit, before base64
+ORIGINAL_QUALITIES = (95, 90, 85, 80, 70)     # lowered only until it fits; never resized
 _failures: dict[tuple[str, int], tuple[int, float, float]] = {}   # key -> (failed tries, next try at, last try at)
 _channel_limit: dict[str, int] = {}                        # ip -> the NVR's channel count
 _nvr_states: dict[str, tuple[float, dict[int, str]]] = {}  # ip -> (read at, {channel: absent|broken|connected})
@@ -63,15 +69,32 @@ def get(ip: str, channel: int) -> Optional[bytes]:
         return _cache.get((ip, int(channel)))
 
 
-def put(ip: str, channel: int, jpeg: bytes, replace: bool = False) -> None:
-    """Keep the first picture of a channel; later ones replace it only on a Retake."""
+def get_original(ip: str, channel: int) -> Optional[bytes]:
+    """The kept picture at the NVR's own size (the tile's frame, not shrunk); the tile itself
+    when there is none (a snapshot.cgi picture, or one too big to fit ORIGINAL_MAX_BYTES)."""
+    key = (ip, int(channel))
+    with _lock:
+        return _original.get(key) or _cache.get(key)
+
+
+def put(ip: str, channel: int, jpeg: bytes, replace: bool = False,
+        original: Optional[bytes] = None) -> None:
+    """Keep the first picture of a channel; later ones replace it only on a Retake. The
+    original (same frame, full size) always goes with its own tile, never with another one."""
     if not jpeg:
         return
+    key = (ip, int(channel))
     with _lock:
-        if replace:
-            _cache[(ip, int(channel))] = jpeg
+        if not replace and key in _cache:
+            return
+        limit = _channel_limit.get(ip)
+        if limit is not None and key[1] > limit:
+            return   # the NVR's own screen, not a camera (see beyond)
+        _cache[key] = jpeg
+        if original:
+            _original[key] = original
         else:
-            _cache.setdefault((ip, int(channel)), jpeg)
+            _original.pop(key, None)
 
 
 def forget_ip(ip: str) -> None:
@@ -79,10 +102,41 @@ def forget_ip(ip: str) -> None:
     with _lock:
         for key in [k for k in _cache if k[0] == ip]:
             del _cache[key]
+        for key in [k for k in _original if k[0] == ip]:
+            del _original[key]
         for key in [k for k in _failures if k[0] == ip]:
             del _failures[key]
         _channel_limit.pop(ip, None)
         _nvr_states.pop(ip, None)
+
+
+def beyond(ip: str, channel: int) -> bool:
+    """Past the NVR's own channel count: on a Dahua NVR that channel streams the NVR's screen
+    (whatever its monitor shows, mouse pointer and alarm icons included), not a camera. At A025
+    (17 Nov 2026) channel 9 of an 8-channel NVR showed a camera full screen, was judged inside,
+    and the after-hours watch alerted on it."""
+    with _lock:
+        limit = _channel_limit.get(ip)
+    return limit is not None and int(channel) > limit
+
+
+def _forget_beyond(ip: str, count: int) -> None:
+    """Drop what was kept of the channels past the NVR's count: pictures, and the placement and
+    Outdoor Area rows (kept from before the count was known), so nothing asks about or watches
+    the NVR's screen. Rows come back by themselves if the NVR ever has more channels."""
+    with _lock:
+        for key in [k for k in _cache if k[0] == ip and k[1] > count]:
+            _cache.pop(key, None)
+            _original.pop(key, None)
+    try:
+        from data_service.db.crud.camera_outside_area_crud import forget_beyond as forget_areas
+        from data_service.db.crud.camera_placement_crud import forget_beyond as forget_placements
+        placed, areas = forget_placements(ip, count), forget_areas(ip, count)
+        if placed or areas:
+            logger.info(f"[snapshot] {ip}: the NVR has {count} channels; dropped {placed} placement and "
+                        f"{areas} Outdoor Area row(s) of the channels past it (its own screen)")
+    except Exception as e:
+        logger.warning(f"[snapshot] {ip}: rows past the NVR's {count} channels not dropped: {type(e).__name__}")
 
 
 def _nvr_view(ip: str, channel: int) -> Optional[str]:
@@ -185,7 +239,24 @@ THUMB_MAX_WIDTH = 1280
 
 
 def grab_rtsp_frame(ip: str, channel: int, username: str, password: str) -> Optional[bytes]:
-    """One JPEG from the channel's main stream over RTSP, at most THUMB_MAX_WIDTH wide, or None.
+    """One JPEG from the channel's main stream over RTSP, at most THUMB_MAX_WIDTH wide, or None."""
+    return grab_rtsp_frames(ip, channel, username, password)[0]
+
+
+def _encode_original(frame) -> Optional[bytes]:
+    """The frame at its own size as a JPEG of at most ORIGINAL_MAX_BYTES (quality lowered
+    step by step, never resized); None when even the lowest quality is too big."""
+    import cv2
+    for q in ORIGINAL_QUALITIES:
+        ok, jpeg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), q])
+        if ok and len(jpeg) <= ORIGINAL_MAX_BYTES:
+            return jpeg.tobytes()
+    return None
+
+
+def grab_rtsp_frames(ip: str, channel: int, username: str, password: str) -> tuple[Optional[bytes], Optional[bytes]]:
+    """(tile, original) from one main-stream frame: the tile at most THUMB_MAX_WIDTH wide for
+    the pages, the original at the NVR's own size for the admin server; (None, None) on failure.
 
     The main stream, not the sub-stream: a Dahua sub-stream is commonly 704x576 —
     the whole 16:9 view squeezed sideways — so in the page's 16:9 tile it came out
@@ -203,28 +274,29 @@ def grab_rtsp_frame(ip: str, channel: int, username: str, password: str) -> Opti
     cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
     try:
         if not cap.isOpened():
-            return None
+            return None, None
         for _ in range(10):  # the first frames after connecting can be empty
             ok, frame = cap.read()
             if ok and frame is not None:
                 if _is_black(frame):
-                    return None
+                    return None, None
+                original = _encode_original(frame)
                 h, w = frame.shape[:2]
                 if w > THUMB_MAX_WIDTH:
                     frame = cv2.resize(frame, (THUMB_MAX_WIDTH, round(h * THUMB_MAX_WIDTH / w)),
                                        interpolation=cv2.INTER_AREA)
                 ok, jpeg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-                return jpeg.tobytes() if ok else None
-        return None
+                return (jpeg.tobytes(), original) if ok else (None, None)
+        return None, None
     finally:
         cap.release()
 
 
 def capture(ip: str, channel: int, username: str, password: str, replace: bool = False) -> Optional[bytes]:
     """RTSP first, snapshot.cgi as a fallback; caches what it gets."""
-    jpeg = None
+    jpeg = original = None
     try:
-        jpeg = grab_rtsp_frame(ip, channel, username, password)
+        jpeg, original = grab_rtsp_frames(ip, channel, username, password)
     except Exception as e:
         logger.warning(f"[snapshot] RTSP frame {ip} ch{channel} failed: {e}")
     if not jpeg:
@@ -239,7 +311,7 @@ def capture(ip: str, channel: int, username: str, password: str, replace: bool =
         except Exception as e:
             logger.warning(f"[snapshot] snapshot.cgi {ip} ch{channel} failed: {e}")
     if jpeg:
-        put(ip, channel, jpeg, replace=replace)
+        put(ip, channel, jpeg, replace=replace, original=original)
     return jpeg
 
 
@@ -260,6 +332,7 @@ def refresh_nvr_view(ip: str, username: str, password: str, force: bool = False)
         if count:
             with _lock:
                 _channel_limit[ip] = count
+            _forget_beyond(ip, count)
     if force or not fresh:
         states = get_nvr_channel_states(ip, username, password)
         with _lock:

@@ -133,6 +133,8 @@ def sio_identify(data: Any):
             "connected_at": time.time(),
             # A branch that can carry the remote tunnel on this link says so at identify.
             "remote_capable": bool(info.get("remote")),
+            # ...and one that can relay live/playback video (live_agent) says so too.
+            "live_capable": bool(info.get("live")),
         }
     _report_identify(client_id, info)
     assigned_version = _fetch_assigned_version(client_id)
@@ -342,6 +344,9 @@ def sio_disconnect():
         if remote_tunnel.session_sid(cid) == request.sid and remote_tunnel.close_session(cid):
             audit_log.record("remote_dropped", cid, result="socketio_disconnect")
     if removed_id:
+        # Its video sessions end with the link: the branch stops ffmpeg on disconnect.
+        from services import live_service
+        socketio.start_background_task(live_service.stop_branch, removed_id)
         _webhook_notify("client_disconnected", removed_id, {})
         current_app.logger.info(f"[SOCKET] Client disconnected client_id={removed_id}")
 

@@ -9,7 +9,9 @@ changes it there.
 Once per channel, keyed by (ip, channel): a channel is asked only while it has no row,
 so restarting the app, or editing a network's username or password, asks nothing again.
 A new network, a new IP, or a larger channel count brings channels with no row: those are
-asked. The picture is the one Camera Selection already took (snapshot_cache); a channel
+asked. The picture is the one Camera Selection already took (snapshot_cache), sent at the
+NVR's own size (get_original; the contract: "do not resize it yourself" — until 16 Nov 2026
+the 1280-wide page tile was sent); a channel
 with no picture (no signal, empty) is not asked until it has one. A branch set up before
 this existed has no rows yet, so each of its channels is asked once after the update.
 
@@ -104,7 +106,7 @@ def _wanted() -> list[tuple[str, int]]:
     with _lock:
         done = placed | _answered
     return [t for t in snapshot_cache._scanned_channels()
-            if t not in done and snapshot_cache.get(*t) is not None]
+            if t not in done and not snapshot_cache.beyond(*t) and snapshot_cache.get(*t) is not None]
 
 
 def run_round(now: Optional[float] = None) -> int:
@@ -121,7 +123,7 @@ def run_round(now: Optional[float] = None) -> int:
         return 0   # no Device Key yet: the server would only say 401
     calls = 0
     for ip, channel in _wanted():
-        jpeg = snapshot_cache.get(ip, channel)
+        jpeg = snapshot_cache.get_original(ip, channel)
         if not jpeg or len(jpeg) > MAX_JPEG:
             continue
         digest = hashlib.sha256(jpeg).hexdigest()

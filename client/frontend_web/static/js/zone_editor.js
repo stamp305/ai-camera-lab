@@ -209,6 +209,7 @@
         // Fast clicks are double clicks to the browser: keep them from selecting (painting blue) the picture.
         canvas.addEventListener('mousedown', (e) => { if (state.drawing || state.edit) e.preventDefault(); });
         canvas.addEventListener('click', (e) => {
+            if (skipClick) { skipClick = false; return; }
             if (!state.drawing || state.edit) return;
             const r = canvas.getBoundingClientRect();
             state.points.push({ x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height });
@@ -240,6 +241,7 @@
 
         function updateControls() {
             const editing = !!state.edit;
+            canvas.style.touchAction = editing || state.drawing ? 'none' : '';   // a finger draws instead of scrolling
             el('undo').disabled = editing ? !state.edit.history.length : !state.points.length;
             el('redo').disabled = editing || !state.redo.length;
             el('clear').disabled = editing || !state.points.length;
@@ -457,6 +459,77 @@
         const fromPx = (pts, r) => pts.map(p => ({ x: p.x / r.width, y: p.y / r.height }));
         const clamp01 = (v) => Math.max(0, Math.min(1, v));
         const fits = (pts) => pts.every(p => p.x >= -1e-4 && p.y >= -1e-4 && p.x <= 1 + 1e-4 && p.y <= 1 + 1e-4);
+        // ---------- magnifier ----------
+        // While a point is pressed or dragged: the picture around it, 3x, with the zone's lines
+        // and a cross on the point. Fixed to the window so the picture's edge never cuts it off.
+        const LOUPE = 104, ZOOM = 3;
+        const loupe = document.createElement('canvas');
+        loupe.className = 'ze-loupe'; loupe.hidden = true;
+        document.body.appendChild(loupe);
+        function showLoupe(pt, pts, color) {
+            const img = el('img'), r = canvas.getBoundingClientRect();
+            if (!pt || !img.naturalWidth || r.width < 10) { hideLoupe(); return; }
+            const dpr = window.devicePixelRatio || 1, S = LOUPE * dpr;
+            if (loupe.width !== S) { loupe.width = S; loupe.height = S; }
+            const ctx = loupe.getContext('2d');
+            const px = pt.x * r.width, py = pt.y * r.height;          // the point on the picture, screen px
+            const k = img.naturalWidth / r.width, half = LOUPE / (2 * ZOOM);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.fillStyle = '#1f2937'; ctx.fillRect(0, 0, S, S);
+            ctx.imageSmoothingEnabled = true;
+            ctx.drawImage(img, (px - half) * k, (py - half) * k, 2 * half * k, 2 * half * k, 0, 0, S, S);
+            const at = (q) => [(q.x * r.width - px) * ZOOM * dpr + S / 2, (q.y * r.height - py) * ZOOM * dpr + S / 2];
+            if (pts && pts.length >= 2) {
+                ctx.beginPath();
+                pts.forEach((q, i) => { const [x, y] = at(q); if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); });
+                if (pts.length >= 3) ctx.closePath();
+                ctx.strokeStyle = color; ctx.lineWidth = 1.5 * dpr; ctx.stroke();
+            }
+            const c = S / 2, a = 7 * dpr;
+            ctx.beginPath(); ctx.moveTo(c - a, c); ctx.lineTo(c + a, c); ctx.moveTo(c, c - a); ctx.lineTo(c, c + a);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 3 * dpr; ctx.stroke();
+            ctx.strokeStyle = color; ctx.lineWidth = 1.5 * dpr; ctx.stroke();
+            // above the point; below it when that would leave the window
+            const sx = r.left + px, sy = r.top + py, gap = 22;
+            const top = sy - gap - LOUPE >= 4 ? sy - gap - LOUPE : sy + gap;
+            loupe.style.left = `${Math.max(4, Math.min(window.innerWidth - LOUPE - 4, sx - LOUPE / 2))}px`;
+            loupe.style.top = `${top}px`;
+            loupe.hidden = false;
+        }
+        function hideLoupe() { loupe.hidden = true; }
+
+        // Drawing a new zone: holding the mouse down shows the magnifier where the point will go
+        // (it goes where the button is let go); holding a point already placed drags it.
+        let press = null, skipClick = false;   // press: {idx (a placed point) or -1, moved}
+        canvas.addEventListener('pointerdown', (ev) => {
+            if (state.edit || ev.button > 0) return;
+            const r = canvas.getBoundingClientRect(), pt = ptOf(ev, r);
+            const near = state.points.findIndex(q => Math.hypot((q.x - pt.x) * r.width, (q.y - pt.y) * r.height) <= 9);
+            if (near < 0 && !state.drawing) return;
+            press = { idx: near, moved: false };
+            if (near >= 0) { ev.preventDefault(); showLoupe(state.points[near], state.points, state.color); }
+            else showLoupe(pt, [...state.points, pt], state.color);
+        });
+        window.addEventListener('pointermove', (ev) => {
+            if (!press || state.edit) return;
+            const r = canvas.getBoundingClientRect();
+            const pt = { x: clamp01((ev.clientX - r.left) / r.width), y: clamp01((ev.clientY - r.top) / r.height) };
+            if (press.idx >= 0) {
+                press.moved = true;
+                state.points[press.idx] = pt;
+                render();
+                showLoupe(pt, state.points, state.color);
+            } else showLoupe(pt, [...state.points, pt], state.color);
+        });
+        window.addEventListener('pointerup', () => {
+            if (!press) return;
+            // a press on a placed point never adds another one, moved or not
+            if (press.idx >= 0) skipClick = true;
+            press = null; hideLoupe();
+            setTimeout(() => { skipClick = false; }, 0);   // the click (if any) comes right after
+        });
+        window.addEventListener('pointercancel', () => { press = null; drag = null; hideLoupe(); });
+
         let drag = null;   // {kind: 'corner'|'move'|'rotate'|'click', idx, startPt, startY, base, basePx, moved}
 
         function startEdit(p) {
@@ -572,6 +645,7 @@
             const r = canvas.getBoundingClientRect();
             const base = state.edit.points.map(p => ({ ...p }));
             drag = { kind, idx, startPt: ptOf(ev, r), startY: ev.clientY, base, basePx: toPx(base, r), moved: false };
+            if (kind === 'corner') showLoupe(base[idx], base, state.color);
         }
         canvas.addEventListener('pointerdown', (ev) => {
             if (!state.edit) return;
@@ -611,8 +685,10 @@
             if (!next || (square && !fits(next))) return;   // a square leaving the picture stops instead of bending
             e.points = next;
             updateControls(); render();
+            if (drag.kind === 'corner') showLoupe(next[drag.idx], next, state.color);
         });
         window.addEventListener('pointerup', () => {
+            hideLoupe();
             if (!drag || !state.edit) { drag = null; return; }
             const d = drag; drag = null;
             if (d.kind === 'click' && !d.moved) addCorner(d.startPt);

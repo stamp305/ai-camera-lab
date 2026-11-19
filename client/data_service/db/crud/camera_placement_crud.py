@@ -148,3 +148,16 @@ def set_user_placement(ip: str, channel: int, placement: str) -> dict:
         import logging
         logging.getLogger(__name__).warning(f"[outdoor-area] re-ask not marked: {type(e).__name__}")
     return read_camera_placement(ip, channel)
+
+
+def forget_beyond(ip: str, count: int) -> int:
+    """Delete the rows of an NVR's channels past its own channel count (its screen, not a
+    camera: utils/snapshot_cache.beyond); returns how many."""
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM camera_placement WHERE ip = ? AND channel > ?", (ip, int(count)))
+        conn.commit()
+        return cur.rowcount
+    finally:
+        conn.close()

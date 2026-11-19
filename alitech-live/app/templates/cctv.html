@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="th">
+  <head>
+{% include "_head.html" %}
+    <title>CCTV Streaming · ALITECH</title>
+  </head>
+  <body class="portal-page">
+    {% include "_sidebar.html" %}
+    <main class="portal-main">
+      <header class="portal-topbar"><span>Security / <b>CCTV Streaming</b></span><button class="portal-bell" type="button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button></header>
+      {% include "_secnav.html" %}
+      <section class="portal-content cam-content" aria-labelledby="cam-title">
+        <h1 id="cam-title">CCTV Streaming</h1>
+        <p class="analytics-updated">ดูกล้องสดและย้อนหลังของสาขา · ทุกการเปิดดูถูกบันทึก (ผู้ดู, กล้อง, เวลา)</p>
+
+        <div class="analytics-tabs" role="tablist" aria-label="View">
+          <button type="button" role="tab" class="is-active" aria-selected="true" data-tab="live">ดูสด</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="playback">ย้อนหลัง</button>
+        </div>
+
+        <div class="cam-filterbar">
+          <div class="analytics-filters cam-filters" data-filters aria-label="Camera filters"></div>
+          <form class="cam-pb-bar" data-pb-form data-pb-only hidden>
+            <div class="analytics-filter cam-date" data-date-filter>
+              <button class="analytics-filter-button" type="button" aria-haspopup="dialog" aria-expanded="false" data-date-button>
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3V2Zm12 8H5v9h14v-9ZM5 8h14V6H5v2Z"/></svg>
+                <span class="analytics-filter-name">วันที่</span><span class="analytics-filter-value" data-date-label>เลือกวันที่</span>
+                <svg class="analytics-filter-caret" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></svg>
+              </button>
+              <div class="analytics-filter-menu cam-calendar" hidden data-calendar></div>
+            </div>
+            <label class="cam-time"><span>เริ่ม</span><input type="time" step="1" data-pb-start required></label>
+            <label class="cam-time"><span>หยุด</span><input type="time" step="1" data-pb-end required></label>
+            <button type="submit" class="cam-btn" data-pb-open>เปิดดู</button>
+          </form>
+          <div class="cam-viewctl">
+            <div class="cam-pager" data-pager hidden>
+              <button type="button" class="cam-page-btn" data-page="-1" aria-label="หน้าก่อนหน้า">&lsaquo;</button>
+              <span data-page-info>1 / 1</span>
+              <button type="button" class="cam-page-btn" data-page="1" aria-label="หน้าถัดไป">&rsaquo;</button>
+            </div>
+            <div class="cam-grid-buttons" role="group" aria-label="Layout">
+              {% for n in [1, 2, 4] %}<button type="button" data-grid="{{ n }}"{% if n == 2 %} class="is-on"{% endif %} title="{{ n }}×{{ n }}{{ ' (ภาพชัด)' if n == 1 else '' }}">{{ n }}×{{ n }}</button>{% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="cam-panel" data-panel="live">
+          <div class="cam-stage" data-fs-target>
+            <div class="cam-grid" data-grid-view></div>
+          </div>
+          <p class="cam-hint">กดที่ช่องเพื่อขยาย (ภาพชัด) · ⛶ = เต็มจอ · 2×2 และ 4×4 = ภาพย่อ · ไม่มีคนดู 45 วินาที ระบบตัดเอง · เซสชันละไม่เกิน 30 นาที</p>
+        </div>
+
+        <div class="cam-panel" data-panel="playback" hidden>
+          <div class="cam-alertbar" data-alertbar hidden>
+            <a class="cam-back" data-alert-back href="/my-products/ai-camera/security/alerts">&lsaquo; กลับไปหน้าแจ้งเตือน</a>
+            <div class="cam-alert-body">
+              <div class="cam-alert-line"><strong data-alert-title></strong><span class="cam-alert-meta" data-alert-meta></span></div>
+              <div class="cam-alert-more" id="cam-alert-more" data-alert-more hidden><span data-alert-branch></span><pre data-alert-msg></pre></div>
+            </div>
+            <button type="button" class="cam-alert-toggle" data-alert-toggle aria-expanded="false" aria-controls="cam-alert-more">รายละเอียด <span aria-hidden="true">▾</span></button>
+            <button type="button" class="cam-alert-close" data-alert-close aria-label="ซ่อนแจ้งเตือน" title="ซ่อน">&times;</button>
+          </div>
+          <div class="cam-player" data-player data-fs-target>
+            <div class="cam-grid" data-pb-view></div>
+            <div class="cam-controls" data-controls>
+              <div class="cam-seekrow">
+                <span class="cam-group-label" data-pb-label title="แถบนี้ควบคุมทุกช่องบนจอพร้อมกัน">ทุกช่อง</span>
+                <span class="cam-clock" data-pb-clock>--:--:--</span>
+                <div class="cam-track" title="แถบสีเขียว = ช่วงที่มีคลิป"><div class="cam-spans" data-spans></div><input type="range" class="cam-seek" min="0" max="0" value="0" step="1" data-pb-seek aria-label="ตำแหน่งเวลา" disabled></div>
+                <span class="cam-clock" data-pb-endclock>--:--:--</span>
+              </div>
+              <div class="cam-ctlrow">
+                <div class="cam-ctlgroup" role="group" aria-label="ย้อนกลับเป็นช่วง">
+                  {% for s in [60, 30, 10] %}<button type="button" class="cam-chip" data-skip="-{{ s }}" disabled title="ย้อนกลับ {{ s }} วินาที">−{{ s }}s</button>{% endfor %}
+                </div>
+                <button type="button" class="cam-ctl" data-pb-play aria-label="เล่น" title="เล่น / หยุดชั่วคราว" disabled>
+                  <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+                </button>
+                <button type="button" class="cam-ctl" data-pb-stop aria-label="หยุด" title="หยุด (กลับไปเวลาเริ่ม)" disabled><svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg></button>
+                <div class="cam-ctlgroup" role="group" aria-label="ข้ามไปข้างหน้า">
+                  {% for s in [10, 30] %}<button type="button" class="cam-chip" data-skip="{{ s }}" disabled title="ข้ามไป {{ s }} วินาที">+{{ s }}s</button>{% endfor %}
+                </div>
+                <button type="button" class="cam-chip cam-sync" data-pb-sync hidden title="ให้ทุกช่องไปที่เวลาของช่องแรก">⇆ ให้ทุกช่องเวลาเดียวกัน</button>
+              </div>
+            </div>
+          </div>
+          <p class="cam-hint">ภาพย้อนหลังจากเครื่องบันทึก (NVR) ของสาขา · แถบสีเขียวบนแถบเวลา = ช่วงที่มีคลิป · ชี้ที่ช่องเพื่อเล่น/เลื่อนเฉพาะช่องนั้น ·4×4 = ภาพนิ่งเปลี่ยนทุก ~2 วินาที กดช่องเพื่อดูภาพเคลื่อนไหวเต็ม · วันที่สีจาง = ไม่มีคลิป · ไม่มีการดาวน์โหลดคลิป</p>
+        </div>
+      </section>
+    </main>
+    <script src="/static/js/portal-lite.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/spinner.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/whep.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/filters.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/cctv.js?v={{ asset_v }}" defer></script>
+  </body>
+</html>

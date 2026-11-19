@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in · ALITECH</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/live.css?v={{ asset_v }}">
+  </head>
+  <body class="auth-page">
+    <header class="auth-header"><div class="portal-brand-word"><strong>ALI</strong><span>TECH</span></div></header>
+    <main class="auth-shell">
+      <section class="auth-card">
+        <h1>เข้าสู่ระบบ</h1>
+        {% if error %}<p class="auth-error" role="alert">{% if error == 'rate' %}ลองใหม่อีกครั้งในภายหลัง{% elif error == 'session' %}เซสชันหมดอายุ กรุณาลองเข้าสู่ระบบอีกครั้ง{% else %}อีเมลหรือรหัสผ่านไม่ถูกต้อง{% endif %}</p>{% endif %}
+        <form method="post" action="/login">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <label><span>อีเมล</span><input name="email" type="email" placeholder="you@company.com" autocomplete="username" required autofocus></label>
+          <label><span>รหัสผ่าน</span><input name="password" type="password" placeholder="รหัสผ่าน" autocomplete="current-password" required></label>
+          <button class="auth-submit" type="submit">เข้าสู่ระบบ</button>
+        </form>
+        <p class="auth-note">Lab · AI Camera live view (Alitech admins only)</p>
+      </section>
+    </main>
+  </body>
+</html>

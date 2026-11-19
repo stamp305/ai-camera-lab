@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="th">
+  <head>
+{% include "_head.html" %}
+    <title>Alert &amp; Log · ALITECH</title>
+  </head>
+  <body class="portal-page">
+    {% include "_sidebar.html" %}
+    <main class="portal-main">
+      <header class="portal-topbar"><span>Security / <b>Alert &amp; Log</b></span><button class="portal-bell" type="button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button></header>
+      {% include "_secnav.html" %}
+      <section class="portal-content cam-content" aria-labelledby="al-title">
+        <h1 id="al-title">Alert &amp; Log</h1>
+        <p class="analytics-updated">การแจ้งเตือนจากกล้อง AI ของทุกสาขา · <span class="al-demo">ข้อมูลตัวอย่าง (DEMO)</span></p>
+        <div class="analytics-tabs" role="tablist" aria-label="Alert type">
+          <button type="button" role="tab" class="is-active" aria-selected="true" data-tab="intrusion">แจ้งเตือนคนในร้านหลังร้านปิด</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="camera">คุณภาพกล้องลดลง</button>
+        </div>
+        <div class="analytics-filters" data-filters aria-label="Alert filters"></div>
+        <article class="breakdown-card al-card">
+          <div class="breakdown-head">
+            <div><h2 data-table-title>แจ้งเตือนคนในร้านหลังร้านปิด</h2></div>
+            <div class="breakdown-actions">
+              <label class="breakdown-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" placeholder="ค้นหาสาขา กล้อง หรือรายละเอียด" data-search></label>
+            </div>
+          </div>
+          <div class="breakdown-scope" data-scope></div>
+          <div class="breakdown-table-wrap" data-scroll>
+            <table class="breakdown-table al-table">
+              <thead><tr>
+                <th><span class="sort-button">วันเวลา</span></th>
+                <th><span class="sort-button">สาขา</span></th>
+                <th><span class="sort-button">กล้อง</span></th>
+                <th><span class="sort-button">รายละเอียด</span></th>
+                <th><span class="sort-button">รูป</span></th>
+              </tr></thead>
+              <tbody data-rows></tbody>
+            </table>
+            <div class="al-more" data-more role="status" aria-live="polite"></div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <dialog class="floor-dialog al-dialog" data-dialog aria-labelledby="al-dialog-title">
+      <div class="floor-dialog-panel">
+        <header><div><h2 id="al-dialog-title" data-d-title></h2><p data-d-sub></p></div><button type="button" class="floor-dialog-close" data-d-close aria-label="ปิด">&times;</button></header>
+        <pre class="al-message" data-d-message></pre>
+        <div class="al-actions"><a class="cam-btn al-jump" data-d-jump href="#">▶ ดูคลิปที่เวลานี้</a><span class="cam-hint" data-d-jump-note></span></div>
+        <div class="al-images" data-d-images></div>
+      </div>
+    </dialog>
+    <script src="/static/js/portal-lite.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/spinner.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/filters.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/alerts.js?v={{ asset_v }}" defer></script>
+  </body>
+</html>

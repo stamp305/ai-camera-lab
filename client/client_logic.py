@@ -42,6 +42,14 @@ except Exception as e:  # pragma: no cover - defensive import guard
     remote_agent = None
 _remote_status_started = False
 
+try:
+    import live_agent
+except Exception as e:  # pragma: no cover - defensive import guard
+    logging.getLogger(__name__).warning(
+        f"[CLIENT_LOGIC] live_agent import failed, live camera disabled: {type(e).__name__}"
+    )
+    live_agent = None
+
 
 def get_mac_address():
     return get_canonical_mac_address()
@@ -696,6 +704,16 @@ class MultiSocketClient:
             sio.on('open_remote', _on_open_remote)
             sio.on('close_remote', remote_agent.close_remote)
             sio.on('remote_frame', remote_agent.on_remote_frame)
+        if live_agent is not None:
+            # Live/playback video for the admin: ffmpeg relays an NVR channel to the media
+            # server on this link's host (SRT, encrypted). The NVR login stays here.
+            sio.on('live_cameras', live_agent.on_live_cameras)
+            sio.on('live_start', live_agent.on_live_start)
+            sio.on('live_stop', live_agent.on_live_stop)
+            sio.on('live_status', live_agent.on_live_status)
+            sio.on('live_record_days', live_agent.on_live_record_days)
+            sio.on('live_record_spans', live_agent.on_live_record_spans)
+            sio.on('siren_call', live_agent.on_siren_call)
         sio.source_server = srv
         return sio
 
@@ -940,6 +958,9 @@ def connect():  # pragma: no cover - network side effect
             "version": current_version,
             # The admin offers a remote session only to a branch that says it can carry one.
             "remote": remote_agent is not None,
+            "live": live_agent is not None,
+            # Name / region / province of the shop, so the portal can group branches by region.
+            "store": live_agent.store_info() if live_agent is not None else {},
         }
     }
     global _IDENTIFY_GENERATION, _identify_retries_left
@@ -1617,6 +1638,8 @@ def on_trigger_build(data):
 
 def disconnect():  # pragma: no cover
     logger.info("[CLIENT SOCKET] Disconnected from update server")
+    if live_agent is not None:
+        live_agent.stop_all("disconnect")   # no viewer can reach a stream without the admin
 
 def _reset_http_session(sio_instance):
     """Give the client a brand-new HTTP session and drop the old pool.

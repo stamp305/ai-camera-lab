@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>No permission · ALITECH</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/vendor/portal.css?v={{ asset_v }}">
+    <link rel="stylesheet" href="/static/css/live.css?v={{ asset_v }}">
+  </head>
+  <body class="portal-page">
+    {% include "_sidebar.html" %}
+    <main class="portal-main">
+      <header class="portal-topbar"><span>Security</span><button class="portal-bell" type="button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button></header>
+      <section class="portal-content cam-empty-page">
+        <h1>ไม่มีสิทธิ์เข้าถึง</h1>
+        <p>หน้าดูกล้องเปิดให้เฉพาะแอดมินของ Alitech</p>
+      </section>
+    </main>
+    <script src="/static/js/portal-lite.js?v={{ asset_v }}" defer></script>
+  </body>
+</html>

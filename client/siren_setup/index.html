@@ -1,0 +1,1126 @@
+<!doctype html>
+<html lang="th">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>ตั้งค่าไซเรน · ALITECH</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* same tokens as ALITECH (Documents/Alitech/1/css/style.css) */
+    :root {
+      --bg: #fafafa;
+      --panel: #ffffff;
+      --border: #efefef;
+      --border-strong: #e4e4e4;
+      --text: #1e1e1e;
+      --text-muted: #8a8a8a;
+      --text-soft: #b0b0b0;
+      --orange: #ff7e5c;
+      --orange-bg: #fff1ec;
+      --blue: #5c77ff;
+      --blue-bg: #f3f5ff;
+      --green: #3bb062;
+      --green-bg: #ecf7f0;
+      --red: #ed5454;
+      --red-bg: #fdeeee;
+      --sidebar-w: 244px;
+      --radius: 12px;
+      --radius-sm: 8px;
+      font-family: "Inter", "IBM Plex Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer
+    }
+
+    .app {
+      display: flex;
+      min-height: 100vh
+    }
+
+    /* sidebar = the 5 steps */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: #fafafa;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh
+    }
+
+    .sidebar-logo {
+      padding: 24px 24px 18px;
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: .5px;
+      color: #1e1e1e
+    }
+
+    .sidebar-logo span {
+      color: #8a8f98
+    }
+
+    .sidebar-company {
+      margin: 0 16px 16px;
+      padding: 10px 12px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .company-avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      background: #e9e9e9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #555;
+      flex-shrink: 0
+    }
+
+    .company-avatar svg {
+      width: 16px;
+      height: 16px
+    }
+
+    .company-name {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3
+    }
+
+    .company-role {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-family: "IBM Plex Mono", monospace
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 4px 12px
+    }
+
+    .nav-label {
+      font-size: 11.5px;
+      color: var(--text-soft);
+      font-weight: 600;
+      padding: 6px 12px 4px;
+      text-transform: uppercase;
+      letter-spacing: .04em
+    }
+
+    .st {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 12px;
+      border: 0;
+      background: transparent;
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      font-weight: 500;
+      color: #444;
+      margin-bottom: 2px;
+      text-align: left
+    }
+
+    .st:hover {
+      background: #f1f1f1
+    }
+
+    .st.active {
+      background: #f0f0f0;
+      color: #111;
+      font-weight: 600
+    }
+
+    .num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1.5px solid #d0d0d0;
+      color: #8a8a8a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700
+    }
+
+    .st.active .num {
+      border-color: #111;
+      color: #111
+    }
+
+    .st.done .num {
+      background: var(--green);
+      border-color: var(--green);
+      color: #fff
+    }
+
+    .sidebar-bottom {
+      padding: 12px 24px 18px;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-muted)
+    }
+
+    /* main */
+    .main {
+      flex: 1;
+      min-width: 0;
+      padding: 22px 32px 60px;
+      max-width: 1100px
+    }
+
+    .breadcrumb {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-bottom: 10px
+    }
+
+    .breadcrumb b {
+      color: var(--text);
+      font-weight: 600
+    }
+
+    .page-title {
+      font-size: 26px;
+      font-weight: 700;
+      margin: 0 0 18px
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-bottom: 16px
+    }
+
+    .panel-head {
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap
+    }
+
+    .panel-title {
+      font-size: 15px;
+      font-weight: 700
+    }
+
+    .panel-sub {
+      font-size: 12.5px;
+      color: var(--text-muted);
+      margin-top: 2px
+    }
+
+    .page {
+      display: none
+    }
+
+    .page.on {
+      display: block
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 16px;
+      align-items: start
+    }
+
+    ol.how {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      counter-reset: n
+    }
+
+    ol.how li {
+      counter-increment: n;
+      position: relative;
+      padding: 0 0 12px 34px
+    }
+
+    ol.how li::before {
+      content: counter(n);
+      position: absolute;
+      left: 0;
+      top: 1px;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      color: #444;
+      font-weight: 600;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .tip {
+      background: var(--blue-bg);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #333
+    }
+
+    .tip b {
+      color: var(--blue)
+    }
+
+    .warn {
+      background: var(--orange-bg)
+    }
+
+    .warn b {
+      color: var(--orange)
+    }
+
+    .art {
+      background: #f8f8f8;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      min-height: 200px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px
+    }
+
+    .mono {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12.5px
+    }
+
+    .muted {
+      color: var(--text-muted)
+    }
+
+    /* controls */
+    .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center
+    }
+
+    .btn {
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      padding: 9px 16px;
+      border: 1px solid var(--border-strong);
+      background: #fff;
+      color: #333
+    }
+
+    .btn:hover {
+      background: #f6f6f6
+    }
+
+    .btn-dark {
+      background: #1e1e1e;
+      color: #fff;
+      border-color: #1e1e1e
+    }
+
+    .btn-dark:hover {
+      background: #000
+    }
+
+    .btn-big {
+      font-size: 14px;
+      padding: 12px 22px
+    }
+
+    .btn:disabled {
+      opacity: .45;
+      cursor: not-allowed
+    }
+
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 4px
+    }
+
+    label.check {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      font-size: 13px;
+      cursor: pointer;
+      margin-top: 14px
+    }
+
+    label.check input {
+      accent-color: var(--blue);
+      width: 15px;
+      height: 15px
+    }
+
+    /* segmented control (ALITECH .panel-seg) */
+    .panel-seg {
+      display: inline-flex;
+      flex-wrap: wrap;
+      background: #f4f4f4;
+      border-radius: 8px;
+      padding: 3px;
+      gap: 2px
+    }
+
+    .panel-seg button {
+      border: none;
+      background: transparent;
+      padding: 7px 14px;
+      font-size: 12.5px;
+      font-weight: 500;
+      border-radius: 6px;
+      color: var(--text-muted)
+    }
+
+    .panel-seg button.active {
+      background: #fff;
+      color: #111;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
+      font-weight: 600
+    }
+
+    .live-at {
+      font-size: 12px;
+      color: var(--text-soft);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap
+    }
+
+    .live-at.on::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      display: inline-block
+    }
+
+    td.diff {
+      color: var(--orange);
+      font-weight: 600
+    }
+
+    .field-label {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #444;
+      margin: 14px 0 6px
+    }
+
+    .field-label:first-of-type {
+      margin-top: 0
+    }
+
+    .panel-seg button small {
+      color: var(--blue);
+      font-weight: 600;
+      margin-left: 4px
+    }
+
+    /* tables (ALITECH .table-panel) */
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      overflow-x: auto;
+      margin-top: 12px
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse
+    }
+
+    thead tr {
+      background: #f8f8f8
+    }
+
+    th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: #666;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap
+    }
+
+    td {
+      padding: 11px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border)
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none
+    }
+
+    td.raw {
+      padding-top: 0;
+      font-size: 12px;
+      color: var(--text-muted)
+    }
+
+    td.raw .mono {
+      font-size: 11.5px;
+      word-break: break-all
+    }
+
+    tr.has-raw td {
+      border-bottom: none
+    }
+
+    .pill {
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 2px 10px;
+      white-space: nowrap
+    }
+
+    .pill.ok {
+      background: var(--green-bg);
+      color: var(--green)
+    }
+
+    .pill.bad {
+      background: var(--red-bg);
+      color: var(--red)
+    }
+
+    .pill.mute {
+      background: #f2f2f2;
+      color: var(--text-muted)
+    }
+
+    .msg {
+      font-size: 13px;
+      margin: 12px 0 0
+    }
+
+    .msg.ok {
+      color: var(--green)
+    }
+
+    .msg.bad {
+      color: var(--red)
+    }
+
+    .qrbox {
+      display: flex;
+      gap: 22px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 16px
+    }
+
+    .qrbox img {
+      width: 210px;
+      height: 210px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 6px;
+      background: #fff
+    }
+
+    .count {
+      font-family: "IBM Plex Mono", monospace;
+      color: var(--blue);
+      font-weight: 600
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border: 2px solid #e4e8ff;
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      vertical-align: -2px;
+      margin-right: 8px
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg)
+      }
+    }
+
+    .ready {
+      display: flex;
+      gap: 16px;
+      align-items: center
+    }
+
+    .siren-ico {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius);
+      flex-shrink: 0;
+      border: 1px solid var(--border-strong);
+      color: #1e1e1e;
+      display: flex;
+      align-items: center;
+      justify-content: center
+    }
+
+    .siren-ico.ring {
+      animation: ring .25s linear 5;
+      color: var(--orange);
+      border-color: var(--orange)
+    }
+
+    @keyframes ring {
+
+      0%,
+      100% {
+        transform: rotate(0)
+      }
+
+      25% {
+        transform: rotate(-10deg)
+      }
+
+      75% {
+        transform: rotate(10deg)
+      }
+    }
+
+    .chip {
+      display: inline-block;
+      background: #f2f2f2;
+      color: #444;
+      border-radius: 6px;
+      padding: 1px 8px;
+      font-size: 12px;
+      font-weight: 600
+    }
+
+    @media (max-width: 860px) {
+      .app {
+        flex-direction: column
+      }
+
+      .sidebar {
+        width: auto;
+        min-height: 0;
+        border-right: 0;
+        border-bottom: 1px solid var(--border)
+      }
+
+      .sidebar-logo {
+        padding: 16px 16px 10px
+      }
+
+      .sidebar-company {
+        margin: 0 16px 10px
+      }
+
+      .sidebar-nav {
+        display: flex;
+        overflow-x: auto;
+        gap: 4px;
+        padding: 0 12px 10px
+      }
+
+      .nav-label,
+      .sidebar-bottom {
+        display: none
+      }
+
+      .st {
+        width: auto;
+        white-space: nowrap
+      }
+
+      .main {
+        padding: 18px 16px 48px
+      }
+
+      .grid2 {
+        grid-template-columns: 1fr
+      }
+    }
+    /* ---- AI Camera lab look: the 5 steps on a bar across the top (not a second sidebar) ---- */
+    :root {
+      --blue: #3155f5;
+      --blue-bg: #eef1ff;
+      --green: #1f9d55;
+      --border: #e4e4e4;
+      font-family: Inter, "Noto Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    html, body { background: #fafafa; color: #222; }
+    .app { flex-direction: column; min-height: 100vh; }
+    .sidebar {
+      position: sticky; top: 0; z-index: 10;
+      width: 100%; min-height: 0;
+      flex-direction: row; align-items: center; flex-wrap: wrap; gap: 12px 18px;
+      padding: 10px 28px;
+      border-right: 0; border-bottom: 1px solid #dedede;
+      background: #fff;
+    }
+    .sidebar-logo { padding: 0; font-size: 20px; font-weight: 700; letter-spacing: 3px; color: #222; }
+    .sidebar-logo span { color: #c8c8c8; }
+    .sidebar-company { margin: 0; padding: 6px 10px; border-color: #e4e4e4; background: #fafafa; }
+    .company-avatar { width: 26px; height: 26px; }
+    .sidebar-nav { flex: 1; display: flex; align-items: center; gap: 4px; padding: 0; overflow-x: auto; }
+    .nav-label { display: none; }
+    .st {
+      width: auto; margin: 0; padding: 7px 12px; gap: 8px;
+      border-radius: 999px; color: #555; font-size: 13px; white-space: nowrap;
+    }
+    .st + .st { position: relative; margin-left: 18px; }
+    .st + .st::before { content: ""; position: absolute; left: -16px; top: 50%; width: 14px; height: 1px; background: #d0d0d0; }
+    .st:hover { background: #f2f2f2; }
+    .st.active { background: #202020; color: #fff; font-weight: 600; }
+    .st.active .num { border-color: #fff; color: #fff; }
+    .st.done .num { background: var(--green); border-color: var(--green); color: #fff; }
+    .sidebar-bottom { padding: 0; border-top: 0; font-size: 12px; color: #8a8a8a; white-space: nowrap; }
+    .main { width: 100%; max-width: 1100px; margin: 0 auto; padding: 24px 28px 48px; }
+    .breadcrumb { color: #777; font-size: 13px; }
+    .breadcrumb b { color: #222; }
+    .page-title { font-size: 26px; }
+    .panel { border-color: #dedede; border-radius: 12px; }
+    .btn-dark { background: #202020; border-color: #202020; }
+    .btn-dark:hover { background: #444; }
+    @media (max-width: 820px) {
+      .sidebar { padding: 10px 16px; }
+      .sidebar-bottom { display: none; }
+      .main { padding: 18px 16px 40px; }
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-logo">ALI<span>TECH</span></div>
+      <div class="sidebar-company">
+        <div class="company-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+            stroke-linecap="round">
+            <path d="M5 12.5a10 10 0 0 1 14 0" />
+            <path d="M8.5 16a5 5 0 0 1 7 0" />
+            <circle cx="12" cy="19.5" r="1" fill="currentColor" />
+          </svg></div>
+        <div>
+          <div class="company-name">เครื่องนี้อยู่วง</div>
+          <div class="company-role" id="net-side">…</div>
+        </div>
+      </div>
+      <nav class="sidebar-nav" id="stepper">
+        <div class="nav-label">ตั้งค่าไซเรน</div>
+        <button class="st" data-go="1"><span class="num">1</span>เสียบไฟ</button>
+        <button class="st" data-go="2"><span class="num">2</span>ตั้งค่าในแอป</button>
+        <button class="st" data-go="3"><span class="num">3</span>สแกน QR</button>
+        <button class="st" data-go="4"><span class="num">4</span>หาในวงแลน</button>
+        <button class="st" data-go="5"><span class="num">5</span>เสียงและทดสอบ</button>
+      </nav>
+      <div class="sidebar-bottom">🔒 key เก็บในเครื่องนี้เท่านั้น</div>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb">Hardware Integration / Tuya / 3 in 1 WiFi Siren Alarm / <b id="crumb">เสียบไฟ</b></div>
+      <h1 class="page-title">ตั้งค่าไซเรนในร้าน</h1>
+
+      <!-- 1 -->
+      <div class="page" data-page="1">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">เสียบไฟให้ไซเรน</div>
+              <div class="panel-sub">ใช้อะแดปเตอร์ USB ทั่วไป (5V) หรือพอร์ต USB ที่จ่ายไฟได้</div>
+            </div>
+          </div>
+          <div class="grid2">
+            <ol class="how">
+              <li>เสียบสาย USB เข้าไซเรน แล้วเสียบอีกด้านเข้าอะแดปเตอร์หรือปลั๊ก</li>
+              <li>รอสักครู่ <b>ไฟสถานะกะพริบ</b> แปลว่าพร้อมให้แอปเพิ่มอุปกรณ์</li>
+              <li>ถ้าไฟไม่กะพริบ หรือเคยเพิ่มในแอปอื่นมาก่อน ให้ <b>กดปุ่มรีเซ็ตค้างประมาณ 5 วินาที</b> จนไฟกะพริบ</li>
+            </ol>
+            <div class="art"><svg width="230" height="170" viewBox="0 0 230 170" aria-hidden="true">
+                <rect x="18" y="40" width="96" height="96" rx="20" fill="#fff" stroke="#1e1e1e" stroke-width="2.5" />
+                <circle cx="66" cy="88" r="22" fill="#f3f5ff" />
+                <circle cx="66" cy="88" r="9" fill="#5c77ff" />
+                <path d="M114 100 C150 100 150 130 186 130" fill="none" stroke="#b0b0b0" stroke-width="5"
+                  stroke-linecap="round" />
+                <rect x="182" y="112" width="34" height="38" rx="8" fill="#1e1e1e" />
+                <rect x="190" y="104" width="6" height="10" fill="#8a8a8a" />
+                <rect x="202" y="104" width="6" height="10" fill="#8a8a8a" />
+                <text x="66" y="160" text-anchor="middle" font-size="12" fill="#8a8a8a"
+                  font-family="IBM Plex Sans Thai">ไฟกะพริบ = พร้อม</text>
+              </svg></div>
+          </div>
+        </div>
+        <div class="nav"><span></span><button class="btn btn-dark" data-next>เสียบแล้ว ไฟกะพริบ</button></div>
+      </div>
+
+      <!-- 2 -->
+      <div class="page" data-page="2">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">เพิ่มไซเรนในแอป Smart Life</div>
+              <div class="panel-sub">ทำบนมือถือ ใช้บัญชี Smart Life เดียวกับที่จะสแกน QR ในขั้นถัดไป</div>
+            </div>
+          </div>
+          <div class="grid2">
+            <ol class="how">
+              <li>เปิดแอป <b>Smart Life</b> กด <b>＋</b> มุมขวาบน → <b>เพิ่มอุปกรณ์</b></li>
+              <li>แอปมักเจอไซเรนเอง (ผ่านบลูทูธ) กด <b>เพิ่ม</b> ถ้าไม่เจอ เลือกหมวด <b>Security &amp; Sensor →
+                  Alarm</b></li>
+              <li>เลือก <b>Wi‑Fi 2.4 GHz วงเดียวกับเครื่องนี้</b> แล้วใส่รหัส Wi‑Fi</li>
+              <li>รอจนแอปขึ้นว่าเพิ่มสำเร็จ ตั้งชื่อให้จำง่าย เช่น รหัสสาขา</li>
+            </ol>
+            <div>
+              <div class="tip"><b>เครื่องนี้อยู่วง</b> <span class="mono" id="net">…</span><br>ไซเรนต้องต่อ Wi‑Fi
+                ที่ได้ IP ขึ้นต้นแบบเดียวกัน</div>
+              <div class="tip warn" style="margin-top:10px">ถ้าลบไซเรนออกจากแอปแล้วเพิ่มใหม่ key จะเปลี่ยน
+                ต้องทำขั้น 3 ใหม่</div>
+              <label class="check"><input type="checkbox" id="added"> เพิ่มในแอปเรียบร้อยแล้ว</label>
+            </div>
+          </div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><button class="btn btn-dark" data-next
+            id="next2" disabled>ถัดไป</button></div>
+      </div>
+
+      <!-- 3 -->
+      <div class="page" data-page="3">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">สแกน QR เพื่อเชื่อมบัญชี</div>
+              <div class="panel-sub">ระบบจะได้ key ของไซเรนจากบัญชีนี้ (ครั้งเดียว) แล้วเก็บไว้ในเครื่องนี้เท่านั้น
+              </div>
+            </div>
+            <button class="btn btn-dark" id="b-qr">สร้าง QR</button>
+          </div>
+          <div id="qr"></div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><button class="btn btn-dark" data-next
+            id="next3" disabled>ถัดไป</button></div>
+      </div>
+
+      <!-- 4 -->
+      <div class="page" data-page="4">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">หาไซเรนในวงแลน</div>
+              <div class="panel-sub">ถามในวงว่า "ใครอยู่บ้าง" แล้วยืนยันตัวไซเรนด้วย key ก่อนใช้งาน</div>
+            </div>
+            <button class="btn btn-dark" id="b-scan">ค้นหาในวงแลน</button>
+          </div>
+          <div id="scan"></div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><button class="btn btn-dark" data-next
+            id="next4" disabled>ถัดไป</button></div>
+      </div>
+
+      <!-- 5 -->
+      <div class="page" data-page="5">
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">ค่าในไซเรนตอนนี้</div>
+
+            </div>
+            <span class="live-at" id="live-at"></span>
+          </div>
+          <div id="live">
+            <p class="msg muted">ยังไม่ได้อ่าน</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">เสียงแจ้งเตือน</div>
+              <div class="panel-sub">ที่ไซเรนใช้ทุกครั้งที่ระบบแจ้งเตือน กดเลือกแล้วบันทึกทันที ไซเรนไม่ดังตอนเลือก
+                ได้ค่าใหม่ตอนแจ้งเตือนหรือตอนกดให้ดังครั้งถัดไป</div>
+            </div>
+          </div>
+          <div class="field-label">เสียง</div>
+          <div class="panel-seg" id="sounds"></div>
+          <div class="field-label">ระดับเสียง</div>
+          <div class="panel-seg" id="volumes"></div>
+          <div class="panel-sub" id="vol-note" style="margin-top:8px"></div>
+          <div id="sound-msg"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div>
+              <div class="panel-title">ทดสอบ</div>
+              <div class="panel-sub">กดให้ดัง = เสียงที่เลือก ดังระดับเบาสุดเสมอ (ไม่ใช้ระดับเสียงที่เลือก) 1 วินาที
+                แล้วคืนระดับเสียงและเวลาเดิมของเครื่อง</div>
+            </div>
+          </div>
+          <div class="ready">
+            <div class="siren-ico" id="ico"><svg width="30" height="30" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M7 18v-6a5 5 0 0 1 10 0v6" />
+                <path d="M5 21h14" />
+                <path d="M5 18h14" />
+                <path d="M12 3V2" />
+                <path d="M4.2 6.2l-.7-.7" />
+                <path d="M19.8 6.2l.7-.7" />
+              </svg></div>
+            <div>
+              <div id="ready-name" style="font-weight:700;font-size:15px">ไซเรน</div>
+              <div class="muted" id="ready-info" style="font-size:12.5px"></div>
+            </div>
+          </div>
+          <div class="row" style="margin-top:16px">
+            <button class="btn btn-dark btn-big" id="b-ring">กดให้ดัง</button>
+            <button class="btn btn-big" id="b-check">ทดสอบแบบไม่มีเสียง</button>
+          </div>
+          <div id="ring"></div>
+        </div>
+        <div class="nav"><button class="btn" data-back>ย้อนกลับ</button><span></span></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+    const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const post = (p, b) => fetch(p, { method: "POST", headers: { "Content-Type": "application/json", "X-Siren-Setup": "1" }, body: JSON.stringify(b || {}) }).then(r => r.json());
+    const spin = t => `<p class="msg"><span class="spinner"></span>${t}</p>`;
+    const table = (head, rows) => `<div class="table-wrap"><table><thead><tr>${head.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    const done = new Set();
+    let step = 1, found = [];
+
+    function go(n) {
+      step = Math.max(1, Math.min(5, n));
+      $$(".page").forEach(p => p.classList.toggle("on", +p.dataset.page === step));
+      $$(".st").forEach(s => { const k = +s.dataset.go; s.classList.toggle("active", k === step); s.classList.toggle("done", done.has(k) && k !== step); });
+      $("#crumb").textContent = $(`.st[data-go="${step}"]`).lastChild.textContent;
+      try { localStorage.setItem("siren-step", step); } catch (e) { }
+      if (step === 5) liveLoop(); else liveRun++;
+    }
+    function finish(n) { done.add(n); go(step); }
+    $$(".st").forEach(s => s.onclick = () => go(+s.dataset.go));
+    $$("[data-next]").forEach(b => b.onclick = () => { done.add(step); go(step + 1); });
+    $$("[data-back]").forEach(b => b.onclick = () => go(step - 1));
+    $("#added").onchange = e => { $("#next2").disabled = !e.target.checked; };
+
+    fetch("/api/state").then(r => r.json()).then(s => {
+      $("#net").textContent = s.net.lan ? `${s.net.lan}  (${s.net.ip})` : "ยังไม่ได้ต่อเครือข่าย";
+      $("#net-side").textContent = s.net.ip && s.net.lan ? s.net.ip : "ไม่ได้ต่อเครือข่าย";
+      if (s.saved.length) {
+        done.add(1); done.add(2); done.add(3); $("#added").checked = true; $("#next2").disabled = false; $("#next3").disabled = false;
+        $("#qr").innerHTML = `<p class="msg ok">มีไซเรนที่เชื่อมไว้แล้ว: ${s.saved.map(d => esc(d.name) + " " + esc(d.id)).join(", ")} · สแกนใหม่ได้ถ้าเพิ่ม/เปลี่ยนไซเรน</p>`;
+      }
+      opts = { sounds: s.sounds, volumes: s.volumes }; current = s.sound; vol = s.volume; drawSettings();
+      let saved = 1; try { saved = +localStorage.getItem("siren-step") || 1; } catch (e) { }
+      go(saved);
+    });
+
+    /* 3: QR */
+    let run = 0, tick = null;
+    $("#b-qr").onclick = async () => {
+      const me = ++run; clearInterval(tick);
+      $("#qr").innerHTML = spin("กำลังสร้าง QR…");
+      const r = await post("/api/qr");
+      if (!r.ok) { $("#qr").innerHTML = `<p class="msg bad">${esc(r.why)}</p>`; return; }
+      let left = r.seconds;
+      $("#qr").innerHTML = `<div class="qrbox"><img src="${r.png}" alt="QR สำหรับแอป Smart Life">
+    <ol class="how"><li>เปิดแอป Smart Life → แท็บ <b>ฉัน</b></li><li>กดไอคอน <b>สแกน</b> มุมขวาบน แล้วสแกน QR นี้</li><li>กด <b>ยืนยันการเข้าสู่ระบบ</b> ในแอป</li></ol></div>
+    <p class="msg"><span class="spinner"></span>รอสแกน… <span class="count" id="left"></span></p>`;
+      tick = setInterval(() => { left--; const el = $("#left"); if (el) el.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`; if (left <= 0) clearInterval(tick); }, 1000);
+      /* one check at a time: after the scan the server spends a few seconds fetching keys, and a
+         second check sent meanwhile would get "idle" back and overwrite the result */
+      let s;
+      do {
+        await new Promise(ok => setTimeout(ok, 2000));
+        if (me !== run) return;
+        try { s = await fetch("/api/qr/status").then(r => r.json()); } catch (e) { s = { state: "error", why: String(e) }; }
+        if (me !== run) return;
+      } while (s.state === "waiting");
+      clearInterval(tick);
+      if (s.state === "done") {
+        const sir = s.devices.filter(d => d.siren);
+        $("#qr").innerHTML = `<p class="msg ${sir.length ? "ok" : "bad"}">${sir.length ? `เชื่อมแล้ว · ได้ key ไซเรน ${sir.length} ตัว` : "เชื่อมแล้ว แต่บัญชีนี้ไม่มีไซเรน — กลับไปขั้น 2"}</p>`
+          + table(["ชื่อในแอป", "Device ID", ""], s.devices.map(d => `<tr><td>${esc(d.name)}</td><td class="mono">${esc(d.id)}</td>
+      <td>${d.siren ? '<span class="pill ok">ไซเรน · เก็บ key</span>' : '<span class="pill mute">อุปกรณ์อื่น · ไม่เก็บ</span>'}</td></tr>`).join(""));
+        if (sir.length) { $("#next3").disabled = false; finish(3); }
+      } else {
+        $("#qr").innerHTML = `<p class="msg bad">${s.state === "expired" ? "QR หมดเวลา — กดสร้าง QR ใหม่" : esc(s.why || "ผิดพลาด")}</p>`;
+      }
+    };
+
+    /* 4: scan */
+    $("#b-scan").onclick = async () => {
+      const b = $("#b-scan"); b.disabled = true; $("#scan").innerHTML = spin("กำลังค้นหาในวงแลน (ประมาณ 8 วินาที)…");
+      try {
+        const r = await post("/api/scan");
+        found = (r.rows || []).filter(x => x.ok);
+        $("#scan").innerHTML = (r.why ? `<p class="msg bad">${esc(r.why)}</p>` : "") + (r.rows && r.rows.length ? `<p class="msg muted">เครื่องนี้ <span class="mono">${esc(r.own_ip)}</span></p>`
+          + table(["ไซเรน", "IP ในวง", "สถานะ"], r.rows.map(x => `<tr>
+      <td>${esc(x.name)} <span class="mono">${esc(x.id)}</span></td><td class="mono">${esc(x.ip || "–")}</td>
+      <td>${x.ok ? '<span class="pill ok">เจอ · key ถูกต้อง</span>' : `<span class="pill bad">${esc(x.why)}</span>`}</td></tr>`).join("")) : "")
+          + (r.search ? `<div class="row" style="margin-top:12px"><button class="btn" id="b-detail">ดูรายละเอียดการค้นหา</button></div><div id="detail" hidden>${detail(r)}</div>` : "")
+          + (r.ok ? "" : `<div class="tip warn" style="margin-top:12px">ไม่เจอ: เช็กว่าไซเรนกับเครื่องนี้ต่อ Wi‑Fi วงเดียวกัน (ขั้น 2) และไซเรนเสียบไฟอยู่</div>`);
+        const bd = $("#b-detail");
+        if (bd) bd.onclick = () => { const d = $("#detail"); d.hidden = !d.hidden; bd.textContent = d.hidden ? "ดูรายละเอียดการค้นหา" : "ซ่อนรายละเอียด"; };
+        if (r.ok) { $("#next4").disabled = false; finish(4); setReady(); }
+      } catch (e) { $("#scan").innerHTML = `<p class="msg bad">${esc(e)}</p>`; }
+      b.disabled = false;
+    };
+    const VOL = { low: "เบา", middle: "กลาง", high: "ดัง", mute: "ปิดเสียง" };
+    const toneName = t => /^mode_\d+$/.test(t || "") ? `เสียงที่ ${t.slice(5)}` : (t ?? "–");
+    function reply(i) {
+      const t = [];
+      if (i._match) t.push(`Device ID ตรงกับที่ได้จาก QR (${esc(i._match)})`);
+      if ("productKey" in i) t.push(`รหัสรุ่นสินค้า ${esc(i.productKey)}`);
+      if ("version" in i) t.push(`โปรโตคอล Tuya ${esc(i.version)}`);
+      if ("encrypt" in i) t.push(i.encrypt ? "สื่อสารแบบเข้ารหัส" : "ไม่เข้ารหัส");
+      if ("active" in i) t.push(i.active === 2 ? "ผูกกับบัญชีแล้ว" : `สถานะผูกบัญชี ${esc(i.active)}`);
+      return t.join(" · ");
+    }
+    function detail(r) {
+      const q = r.search, h = q.heard;
+      return `<div class="tip" style="margin-top:12px">
+      <b>วิธีค้นหา</b><br>
+      1. ส่งคำถาม "ใครอยู่บ้าง" (แบบเดียวกับแอป Smart Life) ไปที่ UDP 7000 แบบกระจายทั้งวง (255.255.255.255) และส่งตรงทีละ IP ${esc(q.asked || "")}<br>
+      2. ฟังคำตอบที่ UDP ${q.listen.join(", ")} สูงสุด ${q.limit} วินาที (ครั้งนี้ใช้ ${q.seconds} วินาที ฟังจนครบเวลาเพื่อให้เห็นทุกตัวที่ตอบ)<br>
+      3. เจอ Device ID ตรงกับที่ได้จากขั้น 3 แล้ว ต่อ TCP 6668 จับมือด้วย local key และอ่านสถานะ ถ้าอ่านได้แปลว่า key ถูกต้อง<br>
+      <span class="muted">ตอบได้เฉพาะอุปกรณ์ Tuya/Smart Life เท่านั้น อุปกรณ์อื่นในวง (มือถือ คอม กล้อง) ไม่ตอบคำถามนี้ จึงไม่อยู่ในรายการ</span></div>
+      <p class="msg"><b>อุปกรณ์ Tuya ที่ตอบกลับ ${h.length} ตัว</b> <span class="muted">· ใต้แต่ละแถวคือข้อความที่อุปกรณ์ตอบมา</span></p>
+      ${h.length ? table(["Device ID", "IP", "โปรโตคอล", "ได้ยินที่", ""], h.map(x => `<tr class="has-raw">
+        <td class="mono">${esc(x.id)}</td><td class="mono">${esc(x.ip)}</td><td class="mono">${esc(x.version || "–")}</td><td class="mono">UDP ${esc(x.port)}</td>
+        <td>${x.ours ? '<span class="pill ok">ไซเรนของเรา</span>' : '<span class="pill mute">อุปกรณ์อื่น</span>'}</td></tr>
+        <tr><td colspan="5" class="raw">${reply(x.ours ? { _match: x.id, ...x.info } : x.info)}<div class="mono">${esc(JSON.stringify(x.info))}</div></td></tr>`).join("")) : '<p class="muted">ไม่มีอุปกรณ์ไหนตอบ</p>'}
+      ${r.rows.filter(x => x.ok).map(x => `<p class="msg"><b>สถานะที่อ่านได้จาก ${esc(x.name)} ${esc(x.id)}</b><br>
+        ระดับเสียง ${esc(VOL[x.volume] || x.volume)} · ดังนาน ${esc(x.seconds)} วินาที · ${esc(toneName(x.sound))} · ตอนนี้${x.ringing ? "กำลังดัง" : "ไม่ได้ดัง"}<br>
+        <span class="mono muted" style="word-break:break-all">${esc(JSON.stringify(x.dps))}</span></p>`).join("")}`;
+    }
+    function setReady() {
+      if (!found.length) return;
+      $("#ready-name").textContent = found.map(f => f.name || "ไซเรน").join(", ");
+      $("#ready-info").innerHTML = found.map(f => `<span class="chip">${esc(f.id)}</span> <span class="mono">${esc(f.ip)}</span> · ${esc(toneName(f.sound))} · ${esc(VOL[f.volume] || f.volume)} ${esc(f.seconds)} วินาที`).join("<br>");
+    }
+
+    /* 5: alert sound + volume (saved only; the siren gets them on its next ring) */
+    const VOL_ORDER = ["mute", "low", "middle", "high"];
+    let opts = { sounds: [], volumes: [] }, current = null, vol = null;
+    function drawSettings() {
+      $("#sounds").innerHTML = opts.sounds.map(t => `<button data-sound="${esc(t)}" class="${t === current ? "active" : ""}">${esc(toneName(t))}${t === "mode_2" ? "<small>ค่าเริ่มต้น</small>" : ""}</button>`).join("");
+      $("#volumes").innerHTML = VOL_ORDER.filter(v => opts.volumes.includes(v)).map(v => `<button data-volume="${v}" class="${v === vol ? "active" : ""}">${esc(VOL[v])}</button>`).join("");
+      $("#vol-note").textContent = vol === "mute" ? "ปิดเสียง: ตอนแจ้งเตือนไซเรนจะไม่มีเสียง (แค่ทำงานเงียบๆ) เลือกระดับอื่นถ้าต้องการให้ดังจริง" : "";
+      $$("#sounds button").forEach(b => b.onclick = () => save({ sound: b.dataset.sound }));
+      $$("#volumes button").forEach(b => b.onclick = () => save({ volume: b.dataset.volume }));
+    }
+    async function save(change) {
+      try {
+        const r = await post("/api/settings", change);
+        if (!r.ok) { $("#sound-msg").innerHTML = `<p class="msg bad">บันทึกไม่สำเร็จ: ${esc(r.why)}</p>`; return; }
+        current = r.sound; vol = r.volume; drawSettings(); liveLoop();
+        $("#sound-msg").innerHTML = `<p class="msg ok">บันทึกแล้ว: ${esc(toneName(current))} · ระดับ${esc(VOL[vol])} · ไซเรนจะใช้ตอนแจ้งเตือนครั้งถัดไป</p>`;
+      } catch (e) { $("#sound-msg").innerHTML = `<p class="msg bad">${esc(e)}</p>`; }
+    }
+
+    /* 5: live values from the siren (what the app set), polled one request at a time */
+    let liveRun = 0;
+    async function liveLoop() {
+      const me = ++liveRun;
+      while (me === liveRun && step === 5) {
+        let wait = 4000;
+        if (!document.hidden) {
+          try { const r = await fetch("/api/live").then(x => x.json()); if (me !== liveRun) return; drawLive(r); if (!r.ok && !r.busy) wait = 15000; }
+          catch (e) { $("#live").innerHTML = `<p class="msg bad">${esc(e)}</p>`; wait = 15000; }
+        }
+        await new Promise(ok => setTimeout(ok, wait));
+      }
+    }
+    function drawLive(r) {
+      const at = $("#live-at");
+      if (r.busy) return;                       // a ring/search is talking to the siren; keep the last reading
+      if (!r.ok) {
+        at.classList.remove("on"); at.textContent = "";
+        $("#live").innerHTML = `<p class="msg bad">อ่านค่าไม่ได้: ${esc(r.why || (r.sirens || []).map(x => x.why).join(", "))}</p>`;
+        return;
+      }
+      at.classList.add("on"); at.textContent = `อัปเดต ${r.at}`;
+      const c = r.chosen, s = r.sirens.find(x => x.ok);
+      const row = (label, dev, mine, show) => `<tr><td>${label}</td><td class="${dev === mine ? "" : "diff"}">${esc(show(dev))}</td><td>${esc(show(mine))}</td></tr>`;
+      const same = s.sound === c.sound && s.volume === c.volume && s.seconds === c.seconds;
+      $("#live").innerHTML = table(["", `ในไซเรนตอนนี้ (${esc(s.name || s.id)})`, "ที่จะใช้ตอนแจ้งเตือน"],
+        row("เสียงแจ้งเตือน", s.sound, c.sound, toneName)
+        + row("ระดับเสียง", s.volume, c.volume, v => VOL[v] || v)
+        + row("ดังนาน", s.seconds, c.seconds, v => `${v ?? "–"} วินาที`)
+        + `<tr><td>ตอนนี้</td><td>${s.ringing ? "กำลังดัง" : "ไม่ได้ดัง"}</td><td></td></tr>`)
+        + (same ? `<p class="msg ok">ตรงกัน</p>`
+          : `<div class="row" style="margin-top:12px"><span class="muted" style="font-size:12.5px">ค่าไม่ตรงกัน: ตอนแจ้งเตือนระบบจะตั้งไซเรนเป็นค่าทางขวา</span>
+             <button class="btn" id="b-use-app">ใช้ค่าจากแอป</button></div>`);
+      const u = $("#b-use-app");
+      if (u) u.onclick = () => save({ sound: s.sound, volume: s.volume, seconds: s.seconds });
+    }
+
+    /* 5: ring */
+    async function ring(path, audible) {
+      const bs = [$("#b-ring"), $("#b-check")]; bs.forEach(b => b.disabled = true);
+      $("#ring").innerHTML = spin(audible ? "กำลังสั่งให้ดัง…" : "กำลังคุยกับไซเรน…");
+      try {
+        const r = await post(path);
+        if (r.ok && audible) { const i = $("#ico"); i.classList.remove("ring"); void i.offsetWidth; i.classList.add("ring"); }
+        $("#ring").innerHTML = r.ok
+          ? `<p class="msg ok">${audible ? `ไซเรนดัง${esc(toneName(current))} แล้ว และคืนระดับเสียงเดิมเรียบร้อย` : "ไซเรนตอบรับ (ไม่มีเสียง)"} · ${r.sirens.filter(s => s.ok).map(s => esc(s.name || s.id) + " " + esc(s.ip)).join(", ")}</p>`
+          : `<p class="msg bad">ไม่สำเร็จ: ${esc(r.why || (r.sirens || []).map(s => s.why).join(", "))}</p>`;
+        if (r.ok) finish(5);
+      } catch (e) { $("#ring").innerHTML = `<p class="msg bad">${esc(e)}</p>`; }
+      bs.forEach(b => b.disabled = false);
+    }
+    $("#b-ring").onclick = () => ring("/api/ring", true);
+    $("#b-check").onclick = () => ring("/api/check", false);
+  </script>
+</body>
+
+</html>

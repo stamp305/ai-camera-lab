@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="th">
+  <head>
+{% include "_head.html" %}
+    <title>Hardware Integration · ALITECH</title>
+  </head>
+  <body class="portal-page">
+    {% include "_sidebar.html" %}
+    <main class="portal-main">
+      <header class="portal-topbar"><span>Security / <b>Hardware Integration</b></span><button class="portal-bell" type="button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button></header>
+      {% include "_secnav.html" %}
+      <section class="portal-content cam-content" aria-labelledby="hw-title">
+        <h1 id="hw-title">Hardware Integration</h1>
+        <p class="analytics-updated">อุปกรณ์ที่ทำงานร่วมกับกล้อง AI ของสาขา · กดที่อุปกรณ์เพื่อตั้งค่า</p>
+
+        <article class="hw-card" data-hw>
+          <button type="button" class="hw-head" aria-expanded="true" aria-controls="hw-siren" data-hw-toggle>
+            <span class="hw-title"><strong>ไซเรนแจ้งเตือน (Siren)</strong></span>
+            <svg class="hw-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+          </button>
+          <div class="hw-body" id="hw-siren">
+            <div class="hw-brand">Tuya</div>
+            <div class="hw-devices" role="list">
+              <a class="hw-device" role="listitem" href="/my-products/ai-camera/security/hardware/tuya-siren" title="ตั้งค่าไซเรน">
+                <img src="/static/vendor/icons/Bell_Ring.svg" alt="" aria-hidden="true">
+                <span>3 in 1 WiFi Siren Alarm<br>รุ่น A03Pro</span>
+              </a>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+    <script src="/static/js/portal-lite.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/hardware.js?v={{ asset_v }}" defer></script>
+  </body>
+</html>
