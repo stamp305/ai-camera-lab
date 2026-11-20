@@ -129,6 +129,62 @@ SIREN_PATHS = {("GET", "/api/state"), ("GET", "/api/live"), ("GET", "/api/qr/sta
                ("POST", "/api/check"), ("POST", "/api/settings")}
 
 
+# ---- LAN check ("is the browser on this branch's network?") ---------------------------------
+# The branch reports {lan_ip, port} hourly (branch_net). For a check the admin hands the branch
+# a one-use ticket (lan_ticket) and gives the portal the address + ticket + store code; the
+# viewer's browser then calls the branch directly. Nothing here is persisted.
+
+_NET_MAX_AGE = 3 * 3600          # older than this = the branch stopped reporting
+_ORIGIN_RE = re.compile(r"^https?://[A-Za-z0-9.\-]+(:\d{1,5})?$")
+
+
+def _ip(text: str):
+    import ipaddress
+    try:
+        return ipaddress.ip_address((text or "").strip())
+    except ValueError:
+        return None
+
+
+def set_net(client_id: str, sid: str, data, remote_addr: str) -> None:
+    d = data if isinstance(data, dict) else {}
+    ip = _ip(str(d.get("lan_ip") or ""))
+    try:
+        port = int(d.get("port"))
+    except (TypeError, ValueError):
+        return
+    if ip is None or ip.version != 4 or not ip.is_private or ip.is_loopback or not 1024 <= port <= 65535:
+        return
+    with update_clients_lock:
+        meta = update_clients.get(client_id)
+        if meta and meta.get("sid") == sid:
+            meta["net"] = {"lan_ip": str(ip), "port": port, "public_ip": remote_addr[:45], "at": time.time()}
+
+
+def lan_ticket(client_id: str, viewer_ip: str, origin: str, viewer: str) -> dict:
+    """Arm the branch's LAN check for one browser and tell the portal where to call."""
+    if not _ORIGIN_RE.match(origin or ""):
+        raise LiveError("bad_request")
+    with update_clients_lock:
+        meta = dict(update_clients.get(client_id) or {})
+    net = meta.get("net") or {}
+    if not meta.get("sid"):
+        raise LiveError("branch_offline", 409)
+    if not net or time.time() - net.get("at", 0) > _NET_MAX_AGE:
+        raise LiveError("no_net", 404)
+    code = str(((meta.get("info") or {}).get("store") or {}).get("code") or "")
+    ticket = secrets.token_urlsafe(32)
+    result = _call(client_id, "lan_ticket", {"ticket": ticket, "origin": origin}, timeout=8)
+    if not result.get("ok"):
+        raise LiveError(result.get("error") or "branch_error", 502)
+    # Same public address = same way out to the internet. Only meaningful when both are public.
+    a, b = _ip(viewer_ip), _ip(net.get("public_ip") or "")
+    same_public = (a == b) if (a and b and a.is_global and b.is_global) else None
+    audit_log.record("lan_check", client_id, None, "armed", viewer=viewer)
+    return {"lan_ip": net["lan_ip"], "port": net["port"], "store_code": code, "ticket": ticket,
+            "same_public": same_public, "reported_s": int(time.time() - net["at"])}
+
+
 def siren_call(client_id: str, method: str, path: str, body: dict, viewer: str) -> dict:
     """Drive the branch's siren setup page (keys stay on the branch). Every change is audited."""
     if (method, path) not in SIREN_PATHS:

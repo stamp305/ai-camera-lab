@@ -35,7 +35,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
-from app import demo_alerts, users
+from app import demo_alerts, hardware_catalog, trusted_proxy, users
 
 HERE = Path(__file__).resolve().parent
 DATA_DIR = HERE.parent / "data"
@@ -49,11 +49,21 @@ COOKIE_SECURE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 if len(SESSION_SECRET) < 32 or len(SERVICE_KEY) < 32:
     raise SystemExit("ALITECH_LIVE_SESSION_SECRET / AICAM_LIVE_SERVICE_KEY missing (run media/run_media.sh first)")
 
+# Behind our own nginx: believe X-Forwarded-For only from these hops (uvicorn's own
+# proxy-header handling is switched off in run.sh so this is the one place that decides).
+PROXIES = trusted_proxy.from_env("ALITECH_LIVE_TRUSTED_PROXIES")
+
+
+def _client_ip(request: Request) -> str:
+    return PROXIES.real_ip(request.client.host if request.client else "", request.headers.get("x-forwarded-for", ""))
+
+
+LAN_PROBE_PORT = int(os.environ.get("AICAM_LAN_PROBE_PORT", "8768"))
 _media = urlsplit(WHEP_BASE)
 MEDIA_ORIGIN = f"{_media.scheme}://{_media.netloc}"
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; "
        "font-src https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' blob:; "
-       f"connect-src 'self' {MEDIA_ORIGIN}; frame-ancestors 'none'; base-uri 'none'; "
+       f"connect-src 'self' {MEDIA_ORIGIN} http://*:{LAN_PROBE_PORT}; frame-ancestors 'none'; base-uri 'none'; "
        "form-action 'self'; object-src 'none'")
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
@@ -162,7 +172,7 @@ async def login_page(request: Request, error: str = ""):
 
 @app.post("/login")
 async def login(request: Request, email: str = Form(""), password: str = Form(""), csrf_field: str = Form("", alias="_csrf")):
-    ip = request.client.host if request.client else "-"
+    ip = _client_ip(request) or "-"
     if not secrets.compare_digest(csrf_field or "-", request.session.get("csrf", "") or "+"):
         return RedirectResponse("/login?error=session", 303)
     if _too_many_fails(ip):
@@ -201,6 +211,10 @@ async def security_page(request: Request, page: str):
     ctx = {"user": user, "csrf_token": _csrf(request), "active": page}
     if user["role"] != "admin":
         return templates.TemplateResponse(request, "no_permission.html", ctx, status_code=403)
+    if page == "hardware":
+        want = request.query_params.get("type", "")
+        ctx.update(categories=hardware_catalog.CATEGORIES,
+                   hw_current=want if want in hardware_catalog.KEYS else hardware_catalog.DEFAULT)
     return templates.TemplateResponse(request, SECURITY_PAGES[page], ctx)
 
 
@@ -219,6 +233,25 @@ async def siren_page(request: Request):
 # The branch's siren setup, reached through the AI Camera admin (keys stay on the branch).
 SIREN_GET = {"state", "live", "qr/status"}
 SIREN_POST = {"qr", "scan", "ring", "check", "settings"}
+
+
+@app.post("/api/siren/{client_id}/lan-ticket")
+async def api_siren_lan_ticket(request: Request, client_id: str):
+    """Is this browser on the branch's network? The admin arms the branch with a one-use ticket and
+    returns where to call; the browser then POSTs {store_code, ticket} to the branch itself."""
+    user = _require_admin_api(request, unsafe=True)
+    client_id = _client(client_id)
+    if demo_alerts.is_demo_branch(client_id):
+        return JSONResponse({"ok": False, "error": "demo_branch"})
+    status, res = await _admin("POST", f"/{client_id}/lan-ticket", json={
+        "viewer": f"alitech:{user['id']}", "viewer_ip": _client_ip(request),
+        "origin": f"{request.url.scheme}://{request.url.netloc}"})
+    if status != 200 or not res.get("ok"):
+        return JSONResponse({"ok": False, "error": res.get("error") or f"admin_{status}"})
+    _audit(user["id"], "lan_check", branch=client_id)
+    return JSONResponse({"ok": True, "url": f"http://{res['lan_ip']}:{int(res['port'])}/lan-check",
+                         "store_code": res.get("store_code") or "", "ticket": res.get("ticket") or "",
+                         "same_public": res.get("same_public")})
 
 
 @app.api_route("/api/siren/{client_id}/{path:path}", methods=["GET", "POST"])

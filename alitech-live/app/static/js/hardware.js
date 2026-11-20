@@ -1,25 +1,21 @@
-// Hardware Integration: category banner (closed on arrival) -> device cards -> one device's details.
+// Hardware Integration: one product type at a time (dropdown) -> a row per brand -> its devices.
+// The chosen type rides in ?type= so the back link from a device page lands on the same type.
 (() => {
   "use strict";
-  const toggle = (btn, open) => {
-    btn.setAttribute("aria-expanded", String(open));
-    document.getElementById(btn.getAttribute("aria-controls")).hidden = !open;
+  const host = document.querySelector("[data-hw-filter]");
+  const cats = [...document.querySelectorAll("[data-hw-cat]")];
+  if (!host || !cats.length || !window.Filters) return;
+  const options = cats.map((c) => ({ value: c.dataset.hwCat, text: c.dataset.hwName }));
+  let current = (cats.find((c) => !c.hidden) || cats[0]).dataset.hwCat;
+  const f = Filters.create(host, { key: "type", name: "ประเภท", icon: "device" });
+  const show = (key) => {
+    current = key;
+    cats.forEach((c) => (c.hidden = c.dataset.hwCat !== key));
+    f.setValue(options.find((o) => o.value === key).text);
+    const url = new URL(location.href);
+    url.searchParams.set("type", key);
+    history.replaceState(null, "", url);
   };
-  document.querySelectorAll("[data-hw-toggle]").forEach((btn) => {
-    const card = btn.closest("[data-hw]");
-    btn.addEventListener("click", () => {
-      const open = btn.getAttribute("aria-expanded") !== "true";
-      toggle(btn, open);
-      card.classList.toggle("is-collapsed", !open);
-    });
-  });
-  document.querySelectorAll("[data-hw-device]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const open = btn.getAttribute("aria-expanded") !== "true";
-      // one device's details at a time
-      btn.closest("[data-hw]").querySelectorAll("[data-hw-device]").forEach((b) => { toggle(b, false); b.classList.remove("is-on"); });
-      toggle(btn, open);
-      btn.classList.toggle("is-on", open);
-    });
-  });
+  f.build = (menu) => Filters.radioMenu(menu, { heading: "ประเภทอุปกรณ์", options, current, onPick: (v) => { show(v); f.close(); } });
+  show(current);
 })();

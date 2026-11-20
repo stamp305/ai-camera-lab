@@ -11,7 +11,7 @@
       <header class="portal-topbar"><span>Security / Hardware Integration / <b>3 in 1 WiFi Siren Alarm</b></span><button class="portal-bell" type="button" aria-label="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg></button></header>
       {% include "_secnav.html" %}
       <section class="portal-content cam-content" aria-labelledby="sr-title">
-        <a class="cam-back sr-back" href="/my-products/ai-camera/security/hardware">&lsaquo; Hardware Integration</a>
+        <a class="cam-back sr-back" href="/my-products/ai-camera/security/hardware?type=siren">&lsaquo; Hardware Integration</a>
         <div class="sr-head">
           <div><h1 id="sr-title">ตั้งค่าไซเรนในร้าน</h1><p class="analytics-updated">Tuya · 3 in 1 WiFi Siren Alarm รุ่น A03Pro · 🔒 key ของไซเรนเก็บที่เครื่องสาขาเท่านั้น · ทุกการสแกน / ทดสอบเสียงถูกบันทึก</p></div>
           <label class="sr-branch"><span>สาขา</span><select data-siren-branch></select></label>
@@ -28,8 +28,8 @@
             <circle cx="12" cy="19.5" r="1" fill="currentColor" />
           </svg></div>
         <div>
-          <div class="company-name">เครื่องสาขาอยู่วง</div>
-          <div class="company-role" id="net-side">…</div>
+          <div class="company-name">การเชื่อมต่อ</div>
+          <div class="company-role" id="net-side">กำลังตรวจ…</div>
         </div>
       </div>
       <nav class="sidebar-nav" id="stepper">
@@ -97,8 +97,7 @@
               <li>รอจนแอปขึ้นว่าเพิ่มสำเร็จ ตั้งชื่อให้จำง่าย เช่น รหัสสาขา</li>
             </ol>
             <div>
-              <div class="tip"><b>เครื่องสาขาอยู่วง</b> <span class="mono" id="net">…</span><br>ไซเรนต้องต่อ Wi‑Fi
-                ที่ได้ IP ขึ้นต้นแบบเดียวกัน</div>
+              <div class="tip"><b>การเชื่อมต่อ</b> <span id="net">กำลังตรวจ…</span><br>ไซเรนต้องต่อ Wi‑Fi วงเดียวกับเครื่องสาขา<br><button type="button" class="btn s-mt8" id="lan-recheck">ตรวจอีกครั้ง</button></div>
               <div class="s-mt10 tip warn">ถ้าลบไซเรนออกจากแอปแล้วเพิ่มใหม่ key จะเปลี่ยน
                 ต้องทำขั้น 3 ใหม่</div>
               <label class="check"><input type="checkbox" id="added"> เพิ่มในแอปเรียบร้อยแล้ว</label>
@@ -170,6 +169,16 @@
           <div class="field-label">ระดับเสียง</div>
           <div class="panel-seg" id="volumes"></div>
           <div class="s-mt8 panel-sub" id="vol-note"></div>
+          <div class="field-label">ดังนาน (ตอนแจ้งเตือน)</div>
+          <div class="secs-row">
+            <div class="panel-seg" id="secs"></div>
+            <span class="secs-own">
+              <input type="number" id="secs-in" min="1" max="380" step="1" inputmode="numeric" aria-label="ดังนานกี่วินาที">
+              <span class="panel-sub">วินาที</span>
+              <button type="button" class="btn" id="secs-save">บันทึก</button>
+            </span>
+          </div>
+          <div class="panel-sub" id="secs-note"></div>
           <div id="sound-msg"></div>
         </div>
 

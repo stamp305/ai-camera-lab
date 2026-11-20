@@ -314,7 +314,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, {"net": net(),
                                     "saved": [{"id": short(d["id"]), "name": d.get("name", "")} for d in saved()],
                                     "sound": sound(), "sounds": list(siren.SOUNDS),
-                                    "volume": volume(), "volumes": list(siren.VOLUMES)})
+                                    "volume": volume(), "volumes": list(siren.VOLUMES),
+                                    "seconds": chosen()["seconds"]})
         if self.path == "/api/live":
             try:
                 return self._send(200, live())

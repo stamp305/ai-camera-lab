@@ -8,6 +8,44 @@
   const select = document.querySelector("[data-siren-branch]");
   const sirenUrl = (p) => `/api/siren/${encodeURIComponent(ROOT.dataset.branch)}${p.replace(/^\/api/, "")}`;
   const sirenGet = (p, o) => fetch(sirenUrl(p), { credentials: "same-origin", cache: "no-store", ...(o || {}) });
+  const MEM = {};   // page memory only: nothing about the siren is kept in the browser
+
+  // LAN check: the admin arms the branch with a one-use ticket; this browser then calls the
+  // branch's LAN address itself. An answer = this computer is on the shop's network.
+  // Only two answers: connected or not. Same public IP counts as connected (same shop
+  // network seen from outside); a wrong store code or no network info yet is "not".
+  const LAN_TEXT = {
+    ok: ["Connected to device", "Connected to device · เครื่องนี้อยู่วงเดียวกับเครื่องสาขา", "good"],
+    off: ["Not connected", "Not connected · เครื่องนี้ไม่ได้อยู่วงเดียวกับเครื่องสาขา", "bad"],
+  };
+  function showLan(key) {
+    const [side, long, tone] = LAN_TEXT[key] || LAN_TEXT.off;
+    const a = document.getElementById("net-side"), b = document.getElementById("net");
+    if (a) { a.textContent = side; a.dataset.tone = tone; }
+    if (b) { b.textContent = long; b.dataset.tone = tone; }
+  }
+  async function lanCheck() {
+    const a = document.getElementById("net-side"), b = document.getElementById("net");
+    if (a) { a.textContent = "กำลังตรวจ…"; a.dataset.tone = ""; }
+    if (b) { b.textContent = "กำลังตรวจ…"; b.dataset.tone = ""; }
+    let t;
+    try {
+      t = await fetch(sirenUrl("/lan-ticket"), { method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": CSRF }, body: "{}" }).then((r) => r.json());
+    } catch (e) { return showLan("off"); }
+    if (!t.ok) return showLan("off");
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 4000);
+    try {
+      const r = await fetch(t.url, { method: "POST", mode: "cors", credentials: "omit", cache: "no-store",
+        targetAddressSpace: "local", signal: ctl.signal, headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ store_code: t.store_code, ticket: t.ticket }) });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j.ok) return showLan("ok");
+    } catch (e) { /* unreachable, refused or blocked by the browser */ }
+    finally { clearTimeout(timer); }
+    showLan(t.same_public ? "ok" : "off");
+  }
 
   function run() {
 
@@ -25,7 +63,7 @@
       $$(".page").forEach(p => p.classList.toggle("on", +p.dataset.page === step));
       $$(".st").forEach(s => { const k = +s.dataset.go; s.classList.toggle("active", k === step); s.classList.toggle("done", done.has(k) && k !== step); });
       $("#crumb").textContent = $(`.st[data-go="${step}"]`).lastChild.textContent;
-      try { localStorage.setItem("siren-step", step); } catch (e) { }
+      try { MEM.step = step; } catch (e) { }
       if (step === 5) liveLoop(); else liveRun++;
     }
     function finish(n) { done.add(n); go(step); }
@@ -35,14 +73,12 @@
     $("#added").onchange = e => { $("#next2").disabled = !e.target.checked; };
 
     sirenGet("/api/state").then(r => r.json()).then(s => {
-      $("#net").textContent = s.net.lan ? `${s.net.lan}  (${s.net.ip})` : "ยังไม่ได้ต่อเครือข่าย";
-      $("#net-side").textContent = s.net.ip && s.net.lan ? s.net.ip : "ไม่ได้ต่อเครือข่าย";
       if (s.saved.length) {
         done.add(1); done.add(2); done.add(3); $("#added").checked = true; $("#next2").disabled = false; $("#next3").disabled = false;
         $("#qr").innerHTML = `<p class="msg ok">มีไซเรนที่เชื่อมไว้แล้ว: ${s.saved.map(d => esc(d.name) + " " + esc(d.id)).join(", ")} · สแกนใหม่ได้ถ้าเพิ่ม/เปลี่ยนไซเรน</p>`;
       }
-      opts = { sounds: s.sounds, volumes: s.volumes }; current = s.sound; vol = s.volume; drawSettings();
-      let saved = 1; try { saved = +localStorage.getItem("siren-step") || 1; } catch (e) { }
+      opts = { sounds: s.sounds, volumes: s.volumes }; current = s.sound; vol = s.volume; secs = s.seconds; drawSettings();
+      let saved = 1; try { saved = +MEM.step || 1; } catch (e) { }
       go(saved);
     });
 
@@ -133,20 +169,32 @@
 
     /* 5: alert sound + volume (saved only; the siren gets them on its next ring) */
     const VOL_ORDER = ["mute", "low", "middle", "high"];
-    let opts = { sounds: [], volumes: [] }, current = null, vol = null;
+    const SECS = [5, 10, 30, 60, 120, 300];       // the siren takes 1–380 s
+    let opts = { sounds: [], volumes: [] }, current = null, vol = null, secs = null;
+    function saveOwnSecs() {
+      const raw = $("#secs-in").value.trim(), n = Number(raw);
+      if (!/^\d+$/.test(raw) || n < 1 || n > 380) { $("#secs-note").textContent = "ใส่จำนวนเต็ม 1–380 วินาที"; return; }
+      $("#secs-note").textContent = "";
+      save({ seconds: n });
+    }
     function drawSettings() {
       $("#sounds").innerHTML = opts.sounds.map(t => `<button data-sound="${esc(t)}" class="${t === current ? "active" : ""}">${esc(toneName(t))}${t === "mode_2" ? "<small>ค่าเริ่มต้น</small>" : ""}</button>`).join("");
       $("#volumes").innerHTML = VOL_ORDER.filter(v => opts.volumes.includes(v)).map(v => `<button data-volume="${v}" class="${v === vol ? "active" : ""}">${esc(VOL[v])}</button>`).join("");
       $("#vol-note").textContent = vol === "mute" ? "ปิดเสียง: ตอนแจ้งเตือนไซเรนจะไม่มีเสียง (แค่ทำงานเงียบๆ) เลือกระดับอื่นถ้าต้องการให้ดังจริง" : "";
       $$("#sounds button").forEach(b => b.onclick = () => save({ sound: b.dataset.sound }));
       $$("#volumes button").forEach(b => b.onclick = () => save({ volume: b.dataset.volume }));
+      $("#secs").innerHTML = SECS.map(n => `<button data-secs="${n}" class="${n === secs ? "active" : ""}">${n < 60 ? n + " วิ" : n / 60 + " นาที"}</button>`).join("");
+      $$("#secs button").forEach(b => b.onclick = () => save({ seconds: +b.dataset.secs }));
+      if (document.activeElement !== $("#secs-in")) $("#secs-in").value = secs ?? "";
+      $("#secs-save").onclick = saveOwnSecs;
+      $("#secs-in").onkeydown = e => { if (e.key === "Enter") saveOwnSecs(); };
     }
     async function save(change) {
       try {
         const r = await post("/api/settings", change);
         if (!r.ok) { $("#sound-msg").innerHTML = `<p class="msg bad">บันทึกไม่สำเร็จ: ${esc(r.why)}</p>`; return; }
-        current = r.sound; vol = r.volume; drawSettings(); liveLoop();
-        $("#sound-msg").innerHTML = `<p class="msg ok">บันทึกแล้ว: ${esc(toneName(current))} · ระดับ${esc(VOL[vol])} · ไซเรนจะใช้ตอนแจ้งเตือนครั้งถัดไป</p>`;
+        current = r.sound; vol = r.volume; secs = r.seconds; $("#secs-in").blur(); drawSettings(); liveLoop();
+        $("#sound-msg").innerHTML = `<p class="msg ok">บันทึกแล้ว: ${esc(toneName(current))} · ระดับ${esc(VOL[vol])} · ดังนาน ${esc(secs)} วินาที · ไซเรนจะใช้ตอนแจ้งเตือนครั้งถัดไป</p>`;
       } catch (e) { $("#sound-msg").innerHTML = `<p class="msg bad">${esc(e)}</p>`; }
     }
 
@@ -216,5 +264,8 @@
     ROOT.dataset.branch = select.value;
     select.addEventListener("change", () => { location.search = "?branch=" + encodeURIComponent(select.value); });
     run();
+    lanCheck();
+    const again = document.getElementById("lan-recheck");
+    if (again) again.addEventListener("click", lanCheck);
   }).catch(() => {});
 })();

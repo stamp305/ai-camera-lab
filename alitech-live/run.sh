@@ -1,5 +1,5 @@
 #!/bin/bash
-# Alitech lab portal: ./alitech-live/run.sh start|stop|status   (port 18100)
+# Alitech lab portal: ./alitech-live/run.sh start|stop|restart|status   (port 18100)
 # Needs ../.live.env (made by media/run_media.sh), the lab admin and MediaMTX running.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -17,7 +17,7 @@ start() {
     mkdir -p -m 700 "$HERE/data"
     set -a; . "$ROOT/.live.env"; set +a
     export AICAM_WHEP_BASE="${AICAM_WHEP_BASE:-http://$LAN_IP:8889}"
-    (cd "$HERE" && nohup "$PY" -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --no-server-header \
+    (cd "$HERE" && nohup "$PY" -m uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --no-server-header --no-proxy-headers \
         --no-access-log < /dev/null >> "$LOG" 2>&1 &)
     for _ in $(seq 1 30); do [ -n "$(pid_of)" ] && break; sleep 0.5; done
     echo "portal : http://$LAN_IP:$PORT/login"
@@ -25,4 +25,5 @@ start() {
 }
 stop() { p="$(pid_of)"; [ -n "$p" ] && kill "$p" && echo "stopped :$PORT" || echo "not running"; }
 status() { [ -n "$(pid_of)" ] && echo "up :$PORT" || echo "down"; }
-case "${1:-status}" in start) start ;; stop) stop ;; status) status ;; *) echo "usage: $0 start|stop|status"; exit 2 ;; esac
+restart() { stop; for _ in $(seq 1 20); do [ -z "$(pid_of)" ] && break; sleep 0.5; done; start; }
+case "${1:-status}" in start) start ;; stop) stop ;; restart) restart ;; status) status ;; *) echo "usage: $0 start|stop|restart|status"; exit 2 ;; esac

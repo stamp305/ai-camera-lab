@@ -393,6 +393,12 @@
       height: 15px
     }
 
+    /* how long the siren rings: presets + own number */
+    .secs-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+    .secs-own { display: inline-flex; align-items: center; gap: 6px }
+    .secs-own input { width: 84px; padding: 7px 10px; border: 1px solid #ddd; border-radius: 6px; font: inherit; font-size: 13px }
+    #secs-note:empty { display: none }
+
     /* segmented control (ALITECH .panel-seg) */
     .panel-seg {
       display: inline-flex;
@@ -890,6 +896,16 @@
           <div class="field-label">ระดับเสียง</div>
           <div class="panel-seg" id="volumes"></div>
           <div class="panel-sub" id="vol-note" style="margin-top:8px"></div>
+          <div class="field-label">ดังนาน (ตอนแจ้งเตือน)</div>
+          <div class="secs-row">
+            <div class="panel-seg" id="secs"></div>
+            <span class="secs-own">
+              <input type="number" id="secs-in" min="1" max="380" step="1" inputmode="numeric" aria-label="ดังนานกี่วินาที">
+              <span class="panel-sub">วินาที</span>
+              <button type="button" class="btn" id="secs-save">บันทึก</button>
+            </span>
+          </div>
+          <div class="panel-sub" id="secs-note"></div>
           <div id="sound-msg"></div>
         </div>
 
@@ -958,7 +974,7 @@
         done.add(1); done.add(2); done.add(3); $("#added").checked = true; $("#next2").disabled = false; $("#next3").disabled = false;
         $("#qr").innerHTML = `<p class="msg ok">มีไซเรนที่เชื่อมไว้แล้ว: ${s.saved.map(d => esc(d.name) + " " + esc(d.id)).join(", ")} · สแกนใหม่ได้ถ้าเพิ่ม/เปลี่ยนไซเรน</p>`;
       }
-      opts = { sounds: s.sounds, volumes: s.volumes }; current = s.sound; vol = s.volume; drawSettings();
+      opts = { sounds: s.sounds, volumes: s.volumes }; current = s.sound; vol = s.volume; secs = s.seconds; drawSettings();
       let saved = 1; try { saved = +localStorage.getItem("siren-step") || 1; } catch (e) { }
       go(saved);
     });
@@ -1050,20 +1066,32 @@
 
     /* 5: alert sound + volume (saved only; the siren gets them on its next ring) */
     const VOL_ORDER = ["mute", "low", "middle", "high"];
-    let opts = { sounds: [], volumes: [] }, current = null, vol = null;
+    const SECS = [5, 10, 30, 60, 120, 300];       // the siren takes 1–380 s
+    let opts = { sounds: [], volumes: [] }, current = null, vol = null, secs = null;
+    function saveOwnSecs() {
+      const raw = $("#secs-in").value.trim(), n = Number(raw);
+      if (!/^\d+$/.test(raw) || n < 1 || n > 380) { $("#secs-note").textContent = "ใส่จำนวนเต็ม 1–380 วินาที"; return; }
+      $("#secs-note").textContent = "";
+      save({ seconds: n });
+    }
     function drawSettings() {
       $("#sounds").innerHTML = opts.sounds.map(t => `<button data-sound="${esc(t)}" class="${t === current ? "active" : ""}">${esc(toneName(t))}${t === "mode_2" ? "<small>ค่าเริ่มต้น</small>" : ""}</button>`).join("");
       $("#volumes").innerHTML = VOL_ORDER.filter(v => opts.volumes.includes(v)).map(v => `<button data-volume="${v}" class="${v === vol ? "active" : ""}">${esc(VOL[v])}</button>`).join("");
       $("#vol-note").textContent = vol === "mute" ? "ปิดเสียง: ตอนแจ้งเตือนไซเรนจะไม่มีเสียง (แค่ทำงานเงียบๆ) เลือกระดับอื่นถ้าต้องการให้ดังจริง" : "";
       $$("#sounds button").forEach(b => b.onclick = () => save({ sound: b.dataset.sound }));
       $$("#volumes button").forEach(b => b.onclick = () => save({ volume: b.dataset.volume }));
+      $("#secs").innerHTML = SECS.map(n => `<button data-secs="${n}" class="${n === secs ? "active" : ""}">${n < 60 ? n + " วิ" : n / 60 + " นาที"}</button>`).join("");
+      $$("#secs button").forEach(b => b.onclick = () => save({ seconds: +b.dataset.secs }));
+      if (document.activeElement !== $("#secs-in")) $("#secs-in").value = secs ?? "";
+      $("#secs-save").onclick = saveOwnSecs;
+      $("#secs-in").onkeydown = e => { if (e.key === "Enter") saveOwnSecs(); };
     }
     async function save(change) {
       try {
         const r = await post("/api/settings", change);
         if (!r.ok) { $("#sound-msg").innerHTML = `<p class="msg bad">บันทึกไม่สำเร็จ: ${esc(r.why)}</p>`; return; }
-        current = r.sound; vol = r.volume; drawSettings(); liveLoop();
-        $("#sound-msg").innerHTML = `<p class="msg ok">บันทึกแล้ว: ${esc(toneName(current))} · ระดับ${esc(VOL[vol])} · ไซเรนจะใช้ตอนแจ้งเตือนครั้งถัดไป</p>`;
+        current = r.sound; vol = r.volume; secs = r.seconds; $("#secs-in").blur(); drawSettings(); liveLoop();
+        $("#sound-msg").innerHTML = `<p class="msg ok">บันทึกแล้ว: ${esc(toneName(current))} · ระดับ${esc(VOL[vol])} · ดังนาน ${esc(secs)} วินาที · ไซเรนจะใช้ตอนแจ้งเตือนครั้งถัดไป</p>`;
       } catch (e) { $("#sound-msg").innerHTML = `<p class="msg bad">${esc(e)}</p>`; }
     }
 

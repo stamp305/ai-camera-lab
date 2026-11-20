@@ -73,14 +73,86 @@ def _db():
     return get_db()
 
 
+# Zones each analytics service draws on a channel (normalised 0..1 points), shown on the
+# portal's live view. Read from the services' own /polygons on loopback; only the shape,
+# colour and a short label leave this machine (no IP).
+ZONE_SERVICES = (("in_pass_service", "In-Pass", 8004), ("hotzone_service", "Hot Zone", 8008),
+                 ("rate_service", "Rate", 8006), ("face_service", "Face", 8009))
+_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_LABEL_BAD = re.compile(r"[\x00-\x1f<>]")
+_zones_cache: list = [0.0, {}]
+ZONES_TTL = 30
+
+
+def _zone_label(svc: str, z: dict) -> str:
+    """The same words the branch's own Display page writes on each zone."""
+    kind = str(z.get("type") or "")
+    if svc == "in_pass_service":
+        d = str(z.get("direction") or "")
+        return ("Walk In" if kind == "in" else "Walk Pass") + (f" ({d})" if d in ("up", "down", "left", "right") else "")
+    if svc == "hotzone_service":
+        name = _LABEL_BAD.sub("", str(z.get("name") or "")).strip()[:40]
+        try:
+            dur = int(float(z.get("duration") or 0))
+        except (TypeError, ValueError):
+            dur = 0
+        return f"{name}{f' ({dur}s)' if 0 < dur < 100000 else ''}".strip()
+    if svc == "rate_service":
+        return "Employee" if kind == "employee" else "Interest"
+    if svc == "face_service":
+        return "Attendance"
+    return ""
+
+
+def _zones_by_channel(ip_to_cam: dict) -> dict:
+    now = time.monotonic()
+    if now < _zones_cache[0]:
+        return _zones_cache[1]
+    import json as _json
+    import urllib.request
+    try:
+        import port_store
+    except Exception:
+        port_store = None
+    out: dict = {}
+    missed = False
+    for svc, title, default in ZONE_SERVICES:
+        try:
+            port = port_store.get_port(svc, default) if port_store else default
+            with urllib.request.urlopen(f"http://127.0.0.1:{int(port)}/polygons", timeout=2) as r:
+                rows = _json.loads(r.read(512 * 1024) or b"[]")
+        except Exception:
+            missed = True                   # not installed, or still starting: ask again soon
+            continue
+        for z in rows if isinstance(rows, list) else []:
+            if not isinstance(z, dict):
+                continue
+            cam = ip_to_cam.get(str(z.get("ip") or ""))
+            try:
+                ch = int(z.get("channel"))
+                pts = [[round(min(max(float(p["x"]), 0.0), 1.0), 4), round(min(max(float(p["y"]), 0.0), 1.0), 4)]
+                       for p in (z.get("points") or [])[:64]]
+            except (TypeError, ValueError, KeyError):
+                continue
+            if cam is None or len(pts) < 2:
+                continue
+            color = str(z.get("color") or "")
+            out.setdefault((cam, ch), []).append({
+                "label": _zone_label(svc, z), "color": color if _COLOR_RE.match(color) else "#f57c00",
+                "points": pts})
+    _zones_cache[:] = [now + (5 if missed else ZONES_TTL), out]
+    return out
+
+
 def list_cameras() -> list[dict]:
     """Every channel of every NVR this branch has: channel 1 up to the NVR's own channel
     count (past it is the NVR's screen, not a camera). `active` = the shop also uses it
-    for analytics. No IP, no login: only ids and names leave this machine."""
+    for analytics; `zones` = what its analytics services draw on it. No IP, no login: only ids,
+    names and zone shapes leave this machine."""
     conn = _db()
     try:
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT id, name, channel_count FROM camera_master ORDER BY id")
+        cur.execute("SELECT id, ip, name, channel_count FROM camera_master ORDER BY id")
         nvrs = cur.fetchall()
         cur.execute("SELECT camera_master_id, channel, status FROM camera_channel")
         rows = cur.fetchall()
@@ -90,13 +162,21 @@ def list_cameras() -> list[dict]:
     # rows left without an NVR (camera_master_id NULL) belong to no camera: skip them
     used = {(int(r["camera_master_id"]), int(r["channel"])): int(r.get("status") or 0) == 1
             for r in rows if r.get("camera_master_id") is not None and r.get("channel") is not None}
+    ip_to_cam: dict = {}
+    for m in nvrs:
+        ip_to_cam.setdefault(str(m.get("ip") or ""), int(m["id"]))
+    try:
+        zones = _zones_by_channel(ip_to_cam)
+    except Exception:
+        zones = {}
     out = []
     for m in nvrs:
         cam = int(m["id"])
         count = int(m.get("channel_count") or 0)
         channels = range(1, count + 1) if count else sorted(ch for (c, ch) in used if c == cam)
         for ch in channels:
-            out.append({"camera": cam, "nvr": m.get("name") or "", "channel": int(ch), "active": used.get((cam, int(ch)), False)})
+            out.append({"camera": cam, "nvr": m.get("name") or "", "channel": int(ch), "active": used.get((cam, int(ch)), False),
+                        "zones": zones.get((cam, int(ch)), [])})
     return out
 
 
@@ -140,12 +220,12 @@ class LiveError(Exception):
 
 
 def store_info() -> dict:
-    """Name, region and province of this shop (the store table), for the portal's filters."""
+    """Code (store.id), name, region and province of this shop, for the portal's filters and LAN check."""
     try:
         conn = _db()
         try:
             cur = conn.cursor(dictionary=True)
-            cur.execute("SELECT name, region, province FROM store ORDER BY id LIMIT 1")
+            cur.execute("SELECT id, name, region, province FROM store ORDER BY id LIMIT 1")
             row = cur.fetchone() or {}
             cur.close()
         finally:
@@ -155,7 +235,7 @@ def store_info() -> dict:
     region = (row.get("region") or "").strip()
     if region.startswith("ภาค"):
         region = region[len("ภาค"):]
-    return {"name": (row.get("name") or "").strip()[:120], "region": region.replace("ฯ", "")[:60],
+    return {"code": str(row.get("id") or "").strip()[:100], "name": (row.get("name") or "").strip()[:120], "region": region.replace("ฯ", "")[:60],
             "province": (row.get("province") or "").strip()[:60]}
 
 

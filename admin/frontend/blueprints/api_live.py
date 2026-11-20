@@ -4,6 +4,7 @@
     GET  /ai-camera/api/live/branches                 online branches that can relay video
     GET  /ai-camera/api/live/<client_id>/cameras      the channels that branch uses
     POST /ai-camera/api/live/<client_id>/start        {mode, items, start?, end?, viewer}
+    POST /ai-camera/api/live/<client_id>/lan-ticket   arm the branch's "same network?" check
     POST /ai-camera/api/live/stop                     {session, viewer}
     POST /ai-camera/api/live/mtx-auth                 MediaMTX's auth hook (loopback only)
 
@@ -118,6 +119,20 @@ def live_siren(client_id):
         abort(400)
     try:
         out = live_service.siren_call(_client(client_id), method, path, body, viewer)
+    except LiveError as exc:
+        return _fail(exc)
+    return jsonify({"ok": True, **out})
+
+
+@bp.route("/api/live/<client_id>/lan-ticket", methods=["POST"])
+def live_lan_ticket(client_id):
+    """Arm the branch's LAN check: {viewer, viewer_ip, origin} -> {lan_ip, port, store_code, ticket, same_public}."""
+    _service_only()
+    req = request.get_json(silent=True) or {}
+    viewer = _viewer(req)
+    try:
+        out = live_service.lan_ticket(_client(client_id), str(req.get("viewer_ip") or "")[:45],
+                                      str(req.get("origin") or "")[:200], viewer)
     except LiveError as exc:
         return _fail(exc)
     return jsonify({"ok": True, **out})

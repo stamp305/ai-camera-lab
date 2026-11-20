@@ -141,6 +141,71 @@
   // ---- tiles ----------------------------------------------------------------------------
   function note(text) { const d = document.createElement("div"); d.className = "cam-note"; d.textContent = text; return d; }
 
+  // Live view: the zones the branch's analytics draw on this channel (In-Pass lines, Hot Zone
+  // areas, ...), with their names. Points are 0..1 of the picture; the SVG uses the video's own
+  // size with "meet", so it lines up with the picture exactly as object-fit: contain shows it.
+  const SVGNS = "http://www.w3.org/2000/svg";
+  const HEX = /^#[0-9a-fA-F]{6}$/;
+  // Same look as the branch's own Display page: closed shape, colour at 1/3 opacity, white
+  // corner dots, white label in the middle with a dark outline. Dots and text stay a fixed
+  // size on screen whatever the tile size (the SVG scales with the picture).
+  function zoneLayer(cam, video) {
+    const zones = cam && Array.isArray(cam.zones) ? cam.zones : [];
+    if (S.tab !== "live" || !zones.length) return null;
+    const svg = document.createElementNS(SVGNS, "svg");
+    svg.setAttribute("class", "cam-zones");
+    svg.setAttribute("aria-hidden", "true");
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    let w = 1600, h = 900;
+    const dots = [], labels = [];
+    const resize = () => {
+      const scale = Math.min(svg.clientWidth / w, svg.clientHeight / h) || 1;
+      for (const c of dots) c.setAttribute("r", String(4 / scale));
+      for (const t of labels) { t.setAttribute("font-size", String(13 / scale)); t.style.strokeWidth = `${3 / scale}px`; }
+    };
+    const el = (tag, attrs) => {
+      const n = document.createElementNS(SVGNS, tag);
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+      return n;
+    };
+    const draw = () => {
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+      svg.replaceChildren();
+      dots.length = 0; labels.length = 0;
+      for (const z of zones) {
+        const pts = (z.points || []).filter((p) => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)).map(([x, y]) => [x * w, y * h]);
+        if (pts.length < 2) continue;
+        const color = HEX.test(z.color || "") ? z.color : "#f57c00";
+        const g = el("g", {});
+        g.append(el("path", {
+          d: pts.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ") + " Z",
+          fill: color + "55", stroke: color, "stroke-width": 2.5, "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke",
+        }));
+        for (const p of pts) {
+          const c = el("circle", { cx: p[0], cy: p[1], r: 4, fill: "#fff", stroke: color, "stroke-width": 2, "vector-effect": "non-scaling-stroke" });
+          dots.push(c); g.append(c);
+        }
+        const label = String(z.label || "").slice(0, 60);
+        if (label && pts.length >= 3) {
+          const t = el("text", {
+            x: pts.reduce((s2, p) => s2 + p[0], 0) / pts.length, y: pts.reduce((s2, p) => s2 + p[1], 0) / pts.length,
+            "text-anchor": "middle", "dominant-baseline": "central", fill: "#fff", "font-size": 13, class: "cam-zone-label",
+          });
+          t.textContent = label;
+          labels.push(t); g.append(t);
+        }
+        svg.append(g);
+      }
+      resize();
+    };
+    draw();
+    video.addEventListener("resize", () => {
+      if (video.videoWidth && video.videoHeight && (video.videoWidth !== w || video.videoHeight !== h)) { w = video.videoWidth; h = video.videoHeight; draw(); }
+    });
+    if (window.ResizeObserver) new ResizeObserver(resize).observe(svg);
+    return svg;
+  }
+
   function makeTile(cam, text, busy) {
     const tile = document.createElement("div");
     tile.className = "cam-tile" + (cam ? "" : " is-empty");
@@ -153,6 +218,8 @@
     state.append(spin, msg);
     const stats = document.createElement("span"); stats.className = "cam-tile-stats";
     tile.append(video, freeze, name, state, stats);
+    const zl = zoneLayer(cam, video);
+    if (zl) tile.insertBefore(zl, name);
     if (cam) {
       tile.dataset.key = key(cam);
       const tools = document.createElement("span"); tools.className = "cam-tile-tools";

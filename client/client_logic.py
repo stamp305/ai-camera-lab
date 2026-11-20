@@ -50,6 +50,15 @@ except Exception as e:  # pragma: no cover - defensive import guard
     )
     live_agent = None
 
+try:
+    import lan_probe
+except Exception as e:  # pragma: no cover - defensive import guard
+    logging.getLogger(__name__).warning(
+        f"[CLIENT_LOGIC] lan_probe import failed, LAN check disabled: {type(e).__name__}"
+    )
+    lan_probe = None
+_lan_probe_started = False
+
 
 def get_mac_address():
     return get_canonical_mac_address()
@@ -714,6 +723,9 @@ class MultiSocketClient:
             sio.on('live_record_days', live_agent.on_live_record_days)
             sio.on('live_record_spans', live_agent.on_live_record_spans)
             sio.on('siren_call', live_agent.on_siren_call)
+        if lan_probe is not None:
+            # The portal's "same network?" check: the admin hands us a one-use ticket first.
+            sio.on('lan_ticket', lan_probe.add_ticket)
         sio.source_server = srv
         return sio
 
@@ -1149,6 +1161,26 @@ def on_identified(data):  # pragma: no cover
     _sio.is_identified = True
     _IDENTIFIED.set()
     _save_assigned_version(data)
+    _start_lan_probe()
+
+
+def _start_lan_probe():  # pragma: no cover - network side effect
+    """Serve the LAN check and report this branch's LAN address to the admin (now, then hourly)."""
+    global _lan_probe_started
+    if lan_probe is None:
+        return
+    try:
+        if not _lan_probe_started:
+            store_code = (lambda: str((live_agent.store_info() or {}).get("code") or "")) if live_agent else (lambda: "")
+            if not lan_probe.start(store_code):
+                logger.warning("[CLIENT_LOGIC] LAN check port busy, LAN check disabled")
+                return
+            lan_probe.start_reporter(lambda info: _sio.emit('branch_net', info), lambda: _sio.connected,
+                                     os.getenv("SOCKET_SERVER_HOST", ""))
+            _lan_probe_started = True
+        lan_probe.wake()
+    except Exception as e:
+        logger.warning(f"[CLIENT_LOGIC] LAN check not started: {type(e).__name__}")
 
 
 def _save_assigned_version(data):

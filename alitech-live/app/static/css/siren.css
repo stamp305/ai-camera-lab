@@ -394,6 +394,12 @@
       height: 15px
     }
 
+    /* how long the siren rings: presets + own number */
+    .secs-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+    .secs-own { display: inline-flex; align-items: center; gap: 6px }
+    .secs-own input { width: 84px; padding: 7px 10px; border: 1px solid #ddd; border-radius: 6px; font: inherit; font-size: 13px }
+    #secs-note:empty { display: none }
+
     /* segmented control (ALITECH .panel-seg) */
     .panel-seg {
       display: inline-flex;
@@ -723,5 +729,6 @@
     .sidebar-nav { flex-wrap: wrap; overflow: visible; row-gap: 6px; }
     .main { max-width: none; margin: 0; padding: 0; }
     .s-mt8 { margin-top: 8px; } .s-mt10 { margin-top: 10px; } .s-mt12 { margin-top: 12px; } .s-mt16 { margin-top: 16px; }
+    [data-tone="good"] { color: #1b7f3b; font-weight: 600; } [data-tone="warn"] { color: #9a5b00; font-weight: 600; } [data-tone="bad"] { color: #c0392b; font-weight: 600; }
     .s-name { font-weight: 700; font-size: 15px; } .s-small { font-size: 12.5px; } .s-break { word-break: break-all; }
 }

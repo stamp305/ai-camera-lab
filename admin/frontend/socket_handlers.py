@@ -543,3 +543,20 @@ def push_main_update(target_client_ids: list[str]):
     return {"success": True,
             "message": f"ส่งไฟล์อัพเดตให้ {len(sids_to_update)} สาขาแล้ว ({file_count} ไฟล์) "
                        f"— สาขาจะรีสตาร์ทเอง รอเวอร์ชันอัปเดตในตารางเพื่อยืนยัน"}
+
+
+@socketio.on("branch_net")
+def sio_branch_net(data: Any):
+    """The branch's LAN address (hourly), for the portal's "same network?" check.
+
+    Kept in memory with the address this connection came from; the branch is whoever
+    this connection identified as, never what the message says.
+    """
+    client_id = _sid_to_client(request.sid)
+    if client_id:
+        from services import live_service
+        from trusted_proxy import from_env
+        ip = from_env("AI_CAMERA_TRUSTED_PROXIES").real_ip(request.remote_addr or "",
+                                                           request.headers.get("X-Forwarded-For", ""))
+        live_service.set_net(client_id, request.sid, data, ip)
+

@@ -11,26 +11,39 @@
       {% include "_secnav.html" %}
       <section class="portal-content cam-content" aria-labelledby="hw-title">
         <h1 id="hw-title">Hardware Integration</h1>
-        <p class="analytics-updated">อุปกรณ์ที่ทำงานร่วมกับกล้อง AI ของสาขา · กดที่อุปกรณ์เพื่อตั้งค่า</p>
+        <p class="analytics-updated">อุปกรณ์ที่ทำงานร่วมกับกล้อง AI ของสาขา · เลือกประเภท แล้วกดที่อุปกรณ์เพื่อตั้งค่า</p>
 
-        <article class="hw-card" data-hw>
-          <button type="button" class="hw-head" aria-expanded="true" aria-controls="hw-siren" data-hw-toggle>
-            <span class="hw-title"><strong>ไซเรนแจ้งเตือน (Siren)</strong></span>
-            <svg class="hw-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
-          </button>
-          <div class="hw-body" id="hw-siren">
-            <div class="hw-brand">Tuya</div>
+        <div class="cam-filterbar"><div class="analytics-filters" data-hw-filter aria-label="ประเภทอุปกรณ์"></div></div>
+
+        {% for c in categories %}
+        <section class="hw-card hw-cat" data-hw-cat="{{ c.key }}" data-hw-name="{{ c.name }}" aria-label="{{ c.name }}"{% if c.key != hw_current %} hidden{% endif %}>
+          {% for b in c.brands %}
+          <div class="hw-brand-row">
+            <div class="hw-brand">{{ b.name }}</div>
             <div class="hw-devices" role="list">
-              <a class="hw-device" role="listitem" href="/my-products/ai-camera/security/hardware/tuya-siren" title="ตั้งค่าไซเรน">
-                <img src="/static/vendor/icons/Bell_Ring.svg" alt="" aria-hidden="true">
-                <span>3 in 1 WiFi Siren Alarm<br>รุ่น A03Pro</span>
+              {% for d in b.devices %}
+              {% if d.href %}
+              <a class="hw-device" role="listitem" href="{{ d.href }}" title="ตั้งค่า {{ d.name }}">
+                <img src="{{ d.icon }}" alt="" aria-hidden="true">
+                <span>{{ d.name }}<br>รุ่น {{ d.model }}</span>
               </a>
+              {% else %}
+              <div class="hw-device is-demo" role="listitem" aria-disabled="true" title="ตัวอย่าง ยังไม่รองรับ">
+                <img src="{{ d.icon }}" alt="" aria-hidden="true">
+                <span>{{ d.name }}<br>รุ่น {{ d.model }}</span>
+                <small>ตัวอย่าง</small>
+              </div>
+              {% endif %}
+              {% endfor %}
             </div>
           </div>
-        </article>
+          {% endfor %}
+        </section>
+        {% endfor %}
       </section>
     </main>
     <script src="/static/js/portal-lite.js?v={{ asset_v }}" defer></script>
+    <script src="/static/js/filters.js?v={{ asset_v }}" defer></script>
     <script src="/static/js/hardware.js?v={{ asset_v }}" defer></script>
   </body>
 </html>

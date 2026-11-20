@@ -46,6 +46,13 @@ body { font-family: Inter, "Noto Sans Thai", Arial, sans-serif; }
 .cam-stage, .cam-player [data-pb-view] { width: 100%; max-width: max(420px, calc((100vh - 300px) * 16 / 9)); margin-inline: auto; }   /* cctv.js fit() sets the exact size */
 .cam-pb-bar[hidden] { display: none !important; }
 .cam-filterbar { align-items: flex-end; }
+/* Fixed spots: filters + layout buttons share the first row, the playback date/time form always
+   takes its own row below. Without this the layout buttons wrapped onto a new line whenever the
+   picked date's label was a little wider than "เลือกวันที่". */
+.cam-filterbar .cam-filters { order: 0; }
+.cam-filterbar .cam-viewctl { order: 1; }
+.cam-filterbar .cam-pb-bar { order: 2; flex: 0 0 100%; }
+.cam-date .analytics-filter-value { min-width: 7.5em; }
 .cam-grid { --cols: 2; display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 6px; padding: 6px; border-radius: 10px; background: #111; }
 .cam-grid-single { --cols: 1; }
 .cam-tile { position: relative; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 6px; background: #1b1b1b; }
@@ -313,3 +320,16 @@ a.hw-device { color: #333; text-decoration: none; }
 .cam-seek.is-apart::-moz-range-thumb { background: #9a9a9a; }
 .cam-sync[hidden] { display: none; }
 .cam-sync { border-color: #ffcf66; color: #ffcf66; }
+/* Hardware Integration: product type dropdown -> a row per brand, devices left to right */
+.hw-cat { padding: 18px 20px 22px; }
+.hw-cat[hidden] { display: none; }
+.hw-brand-row + .hw-brand-row { margin-top: 18px; padding-top: 16px; border-top: 1px solid #f0f0f0; }
+.hw-device.is-demo { cursor: default; color: #777; }
+.hw-device.is-demo:hover { border-color: #dedede; background: #fff; }
+.hw-device.is-demo img { opacity: .75; }
+.hw-device small { color: #9a9a9a; font-size: 11px; font-weight: 500; }
+/* live view: analytics zones over the picture (shown once it plays) */
+.cam-zones { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity .2s; }
+.cam-tile.is-live .cam-zones { opacity: 1; }
+.cam-zone-label { font-family: inherit; font-weight: 600; paint-order: stroke; stroke: rgba(0,0,0,.7); stroke-width: 3px; }
+
