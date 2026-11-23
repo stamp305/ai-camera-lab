@@ -858,3 +858,7 @@ button {
         padding: 2rem 1.5rem;
     }
 }
+
+/* label + field rows (create store): stack on a narrow window */
+.ac-form-row { display: grid; grid-template-columns: 1fr 3fr; align-items: center; gap: 1rem; }
+@media (max-width: 640px) { .ac-form-row { grid-template-columns: 1fr; gap: .4rem; } }

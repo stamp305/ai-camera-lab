@@ -351,3 +351,36 @@ body.ac-sidebar-collapsed .ac-nav-link { justify-content: center; padding: 0; }
 .ac-back { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ac-text-2); }
 .ac-back:hover { color: var(--ac-text); }
 .ac-back svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- Responsive: the layout follows the window size ----------
+   Spacing shrinks smoothly with the window (clamp), the sidebar turns into its
+   icon rail under 1024 px (layout_navbar.html), and side-by-side panels stack
+   once there is no room for both. */
+.ac-sidebar { flex-basis: clamp(232px, 21vw, 276px); width: clamp(232px, 21vw, 276px); }
+.ac-topbar { padding: 0 clamp(16px, 4.5vw, 64px); }
+.ac-page { padding: clamp(18px, 3vw, 36px) clamp(14px, 2.5vw, 32px) clamp(32px, 5vw, 64px); }
+.ac-card-pad { padding: clamp(16px, 2vw, 24px); }
+
+html:not(.ac-ready) .ac-sidebar { transition: none; }
+
+/* main picture + side panel (Live Display, zone pages) */
+.ac-split { grid-template-columns: minmax(0, 1fr) clamp(280px, 28vw, 360px); }
+/* two fields side by side */
+.ac-2col { grid-template-columns: 1fr 1fr; }
+
+@media (max-width: 1024px) {
+    .ac-split { grid-template-columns: minmax(0, 1fr); }
+    .ac-split > :first-child { border-right: 0 !important; border-bottom: 1px solid #e5e5e5; }
+    .ac-page-title { font-size: 18px; }
+}
+@media (max-width: 760px) {
+    /* opened by hand on a small window: lie over the page instead of squeezing it */
+    body:not(.ac-sidebar-collapsed) .ac-sidebar { position: fixed; left: 0; top: 0; z-index: 1000; box-shadow: 0 0 24px rgba(0,0,0,.18); }
+    body:not(.ac-sidebar-collapsed) .ac-main { margin-left: 76px; }
+    .ac-topbar { height: 52px; }
+    .ac-modal-box { max-width: calc(100vw - 24px); }
+    .ac-btn-lg { height: 40px; }
+}
+@media (max-width: 640px) {
+    .ac-2col { grid-template-columns: 1fr; }
+}

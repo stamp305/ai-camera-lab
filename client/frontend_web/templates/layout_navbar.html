@@ -6,6 +6,10 @@
   try {
     if (localStorage.getItem("ac-sidebar-collapsed") === "true") document.documentElement.classList.add("ac-pre-collapsed");
   } catch (_) {}
+  try {
+    // narrow window: start as the icon rail, so the sidebar does not slide shut on every page load
+    if (window.matchMedia("(max-width: 1024px)").matches) document.documentElement.classList.add("ac-pre-collapsed");
+  } catch (_) {}
 </script>
 {% endblock %}
 
@@ -127,16 +131,25 @@
 
     (function() {
         if (document.documentElement.classList.contains('ac-pre-collapsed')) document.body.classList.add('ac-sidebar-collapsed');
+        // A narrow window shows the icon rail; widening it again brings back what the
+        // user chose. Only the toggle button writes that choice.
+        const narrow = window.matchMedia('(max-width: 1024px)');
+        const saved = () => { try { return localStorage.getItem('ac-sidebar-collapsed') === 'true'; } catch (_) { return false; } };
+        const fit = () => document.body.classList.toggle('ac-sidebar-collapsed', narrow.matches || saved());
+        fit();
+        // animate only what the user does, not the first layout
+        requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.add('ac-ready')));
+        if (narrow.addEventListener) narrow.addEventListener('change', fit);
         document.getElementById('ac-sidebar-toggle').addEventListener('click', () => {
             const collapsed = document.body.classList.toggle('ac-sidebar-collapsed');
-            try { localStorage.setItem('ac-sidebar-collapsed', String(collapsed)); } catch (_) {}
+            if (!narrow.matches) { try { localStorage.setItem('ac-sidebar-collapsed', String(collapsed)); } catch (_) {} }
         });
 
         document.querySelectorAll('.ac-nav-group-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 if (document.body.classList.contains('ac-sidebar-collapsed')) {
                     document.body.classList.remove('ac-sidebar-collapsed');
-                    try { localStorage.setItem('ac-sidebar-collapsed', 'false'); } catch (_) {}
+                    if (!narrow.matches) { try { localStorage.setItem('ac-sidebar-collapsed', 'false'); } catch (_) {} }
                     return;
                 }
                 btn.parentElement.classList.toggle('collapsed');

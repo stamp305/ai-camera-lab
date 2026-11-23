@@ -69,7 +69,7 @@
                 <input class="ac-input" id="s-id" placeholder="Branch number" required>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="ac-2col" style="display:grid;gap:12px;">
                 <div class="ac-field">
                     <label class="ac-label">Area</label>
                     <div class="ac-pill-wrap">
@@ -98,7 +98,7 @@
                 </div>
             </div>
 
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div class="ac-2col" style="display:grid;gap:12px;">
                 <div><label class="ac-label" for="s-open">Open time</label>
                     <label class="sd-time"><span>from</span><input type="time" id="s-open" required></label></div>
                 <div><label class="ac-label" for="s-close">Close time</label>
@@ -108,7 +108,7 @@
             <div class="sd-sec">
                 <div class="sd-sec-head"><span class="ac-label">Security</span><span class="sd-opt">Optional</span></div>
                 <p class="sd-sec-help">How long before opening the alert starts checking for staff arriving.</p>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div class="ac-2col" style="display:grid;gap:12px;">
                     <label class="sd-time"><span>hours</span><input type="number" id="s-staff-h" min="0" max="12" step="1" inputmode="numeric" placeholder="1"><span class="sd-spin"><button type="button" data-for="s-staff-h" data-by="1" aria-label="More hours"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button type="button" data-for="s-staff-h" data-by="-1" aria-label="Fewer hours"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></span></label>
                     <label class="sd-time"><span>minutes</span><input type="number" id="s-staff-m" min="0" max="59" step="1" inputmode="numeric" placeholder="30"><span class="sd-spin"><button type="button" data-for="s-staff-m" data-by="5" aria-label="More minutes"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button><button type="button" data-for="s-staff-m" data-by="-5" aria-label="Fewer minutes"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button></span></label>
                 </div>
