@@ -1,0 +1,194 @@
+diff --git a/build_cython.py b/build_cython.py
+index 4f0e3fd..ef9be79 100644
+--- a/build_cython.py
++++ b/build_cython.py
+@@ -10,7 +10,7 @@ import sys
+ import tempfile
+ 
+ # Directories to compile recursively
+-COMPILE_DIRS = ["data_service", "frontend_web"]
++COMPILE_DIRS = ["data_service", "frontend_web", "siren_setup"]
+ 
+ # Directories to skip entirely
+ SKIP_DIRS = {"__pycache__", "python_env", "site-packages", "temp_update",
+@@ -38,6 +38,8 @@ TOP_LEVEL_FILES = [
+     "log_redact.py", "log_seal.py",
+     # Imported by bootstrap when the app is installed over a git-clone branch.
+     "legacy_clone.py",
++    # CCTV Streaming (Alitech portal) and the readiness report behind it.
++    "live_agent.py", "branch_features.py", "lan_probe.py",
+     # The installed version, written by build_mac_app.sh from VERSION right
+     # before this runs (version_store reads it first).
+     "_build_info.py",
+diff --git a/client_logic.py b/client_logic.py
+index fb3aa60..746d07f 100644
+--- a/client_logic.py
++++ b/client_logic.py
+@@ -85,6 +85,32 @@ def setup_logging():
+ # Initialize logging
+ logger = setup_logging()
+ 
++# CCTV Streaming for the Alitech portal (live_agent) and what this branch is ready for
++# (branch_features). Either one failing to load only turns its own feature off.
++try:
++    import live_agent
++except Exception as e:  # pragma: no cover - defensive import guard
++    logger.warning(f"[CLIENT_LOGIC] live_agent import failed, live camera disabled: {type(e).__name__}")
++    live_agent = None
++try:
++    import branch_features
++except Exception as e:  # pragma: no cover - defensive import guard
++    logger.warning(f"[CLIENT_LOGIC] branch_features import failed, readiness not reported: {type(e).__name__}")
++    branch_features = None
++# Siren (Hardware Integration): the loopback setup page the portal drives through siren_call,
++# and the "is this browser on the shop's network?" check (lan_probe).
++try:
++    from siren_setup import app as siren_setup
++except Exception as e:  # pragma: no cover - defensive import guard
++    logger.warning(f"[CLIENT_LOGIC] siren_setup import failed, siren setup disabled: {type(e).__name__}")
++    siren_setup = None
++try:
++    import lan_probe
++except Exception as e:  # pragma: no cover - defensive import guard
++    logger.warning(f"[CLIENT_LOGIC] lan_probe import failed, LAN check disabled: {type(e).__name__}")
++    lan_probe = None
++_lan_probe_started = False
++
+ try:
+     import _secrets
+ except ImportError:
+@@ -626,8 +652,21 @@ class MultiSocketClient:
+         sio.server_info = {**srv, 'url': effective_url, 'path': path}
+         
+         # Register event handlers wrapped to pass this sio (or just let them use get_sio())
+-        sio.on('connect', connect)
+-        sio.on('disconnect', disconnect)
++        def _on_connect(_origin=effective_url):
++            connect()
++            if live_agent is not None:
++                live_agent.reattach(_origin)          # streams waiting for this link send again
++
++        sio.on('connect', _on_connect)
++
++        def _on_disconnect(*_args, _origin=effective_url):
++            disconnect()
++            if live_agent is not None:
++                # A short drop must not end what people are watching: this link's streams wait
++                # live_agent.RECONNECT_GRACE seconds for it (the admin keeps the viewers too).
++                live_agent.detach(_origin)
++
++        sio.on('disconnect', _on_disconnect)
+         sio.on('connect_error', on_connect_error)
+         sio.on('service_update', lambda data: None)
+         sio.on('main_client_update', lambda data: None)
+@@ -654,6 +693,24 @@ class MultiSocketClient:
+         sio.on('dlc_update_complete', on_dlc_update_complete)
+         sio.on('update_complete', on_update_complete)
+         sio.on('trigger_build', on_trigger_build)
++        if live_agent is not None:
++            # Live/playback video for the Alitech portal: ffmpeg relays one NVR channel to the
++            # admin on THIS link (MPEG-TS chunks over Socket.IO, or WHIP when the admin asks).
++            # The NVR login stays here.
++            sio.on('live_cameras', live_agent.on_live_cameras)
++            # The answer goes back on THIS link, and so does the video in the socket transport.
++            sio.on('live_start', lambda data, _origin=effective_url, _sio=sio:
++                   live_agent.on_live_start(data, _origin, _sio.emit))
++            sio.on('live_stop', live_agent.on_live_stop)
++            sio.on('live_extend', live_agent.on_live_extend)
++            sio.on('live_resolve', live_agent.on_live_resolve)
++            sio.on('live_status', live_agent.on_live_status)
++            sio.on('live_record_days', live_agent.on_live_record_days)
++            sio.on('live_record_spans', live_agent.on_live_record_spans)
++            sio.on('siren_call', live_agent.on_siren_call)
++        if lan_probe is not None:
++            # The portal's "same network?" check: the admin hands us a one-use ticket first.
++            sio.on('lan_ticket', lan_probe.add_ticket)
+         sio.source_server = srv
+         return sio
+ 
+@@ -895,7 +952,13 @@ def connect():  # pragma: no cover - network side effect
+             "activateID": client_info.get("activateID"),
+             "mac_address": get_mac_address(),
+             "current_version": current_version,
+-            "version": current_version
++            "version": current_version,
++            "live": live_agent is not None,
++            # Name / region / province of the shop, so the portal can group branches by region.
++            "store": live_agent.store_info() if live_agent is not None else {},
++            # What the Alitech portal may offer for this branch (yes/no only); the last check,
++            # so identify never waits on it. A fresh one follows as branch_features.
++            "features": branch_features.current() if branch_features is not None else {},
+         }
+     }
+     global _IDENTIFY_GENERATION, _identify_retries_left
+@@ -1078,6 +1141,58 @@ def on_identified(data):  # pragma: no cover
+     _sio.is_identified = True
+     _IDENTIFIED.set()
+     _save_assigned_version(data)
++    _start_siren_setup()
++    _start_lan_probe()
++    _start_features_reporter()
++
++
++def _start_siren_setup():  # pragma: no cover - network side effect
++    """The siren setup page on 127.0.0.1:8767 (once; a taken port only turns it off)."""
++    if siren_setup is None:
++        return
++    try:
++        if not siren_setup.start():
++            logger.warning("[CLIENT_LOGIC] siren setup port busy, siren setup disabled")
++    except Exception as e:
++        logger.warning(f"[CLIENT_LOGIC] siren setup not started: {type(e).__name__}")
++
++
++def _admin_url() -> str:
++    """The first admin link this branch talks to (for the LAN route; nothing is sent there)."""
++    try:
++        return str((_sio.servers[0] or {}).get("url") or "")
++    except Exception:
++        return ""
++
++
++def _start_lan_probe():  # pragma: no cover - network side effect
++    """Serve the LAN check and report this branch's LAN address to the admin (now, then hourly)."""
++    global _lan_probe_started
++    if lan_probe is None:
++        return
++    try:
++        if not _lan_probe_started:
++            store_code = (lambda: str((live_agent.store_info() or {}).get("code") or "")) if live_agent else (lambda: "")
++            if not lan_probe.start(store_code):
++                logger.warning("[CLIENT_LOGIC] LAN check port busy, LAN check disabled")
++                return
++            lan_probe.start_reporter(lambda info: _sio.emit('branch_net', info), lambda: _sio.connected,
++                                     _admin_url())
++            _lan_probe_started = True
++        lan_probe.wake()
++    except Exception as e:
++        logger.warning(f"[CLIENT_LOGIC] LAN check not started: {type(e).__name__}")
++
++
++def _start_features_reporter():  # pragma: no cover - network side effect
++    """Tell the admin what this branch is ready for (live / alerts / siren), now and on change."""
++    if branch_features is None:
++        return
++    try:
++        branch_features.start_reporter(live_agent, lambda f: _sio.emit('branch_features', f),
++                                       lambda: _sio.connected)
++    except Exception as e:
++        logger.warning(f"[CLIENT_LOGIC] readiness report not started: {type(e).__name__}")
+ 
+ 
+ def _save_assigned_version(data):
+diff --git a/requirements.txt b/requirements.txt
+index 89e07c1..92bc545 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -197,3 +197,7 @@ wrapt==1.17.3
+ wsproto==1.3.2
+ yarl==1.22.0
+ zipp==3.23.0
++# Siren setup (siren_setup/): Tuya QR pairing
++qrcode==8.2
++tuya-device-sharing-sdk==0.2.15
++paho-mqtt==2.2.0
